@@ -43,6 +43,9 @@ export interface Change {
   queSignifica: string;        // impacto para el usuario (plano)
   queHacer: string[];          // acciones para Producto
   productos: string[];         // productos afectados (subset de productosPosibles)
+  // Antes/Después: la evidencia de "qué estaba y qué cambió" que pide el reto.
+  antes?: { etiqueta: string; texto: string };
+  despues?: { etiqueta: string; texto: string };
   diff?: string;               // extracto del diff detectado
   detectadoEn: string;         // ISO date
   analisis: Analisis;          // RIA / RRD / Gap
