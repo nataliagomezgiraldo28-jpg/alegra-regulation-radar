@@ -1,87 +1,89 @@
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
-import { RadarState, Change, Notification } from "@/lib/types";
+import { RadarState, Change, Notification, SourceView } from "@/lib/types";
 
-const stateLabel: Record<string, string> = { cambio: "Algo cambió", base: "Por revisar", ok: "Todo en orden" };
-const stateClass: Record<string, string> = { cambio: "alert", base: "warn", ok: "ok" };
-const cardClass: Record<string, string> = { cambio: "is-alert", base: "is-warn", ok: "is-ok" };
+const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+function fmtFecha(iso: string) {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return `${d.getDate()} ${MESES[d.getMonth()]} ${d.getFullYear()}`;
+}
+const estadoLabel: Record<string, string> = { activo: "Activo", atendido: "Atendido", archivado: "Archivado" };
 
 export default function Dashboard({ initial }: { initial: RadarState }) {
-  const [sources, setSources] = useState(initial.sources);
+  const [sources, setSources] = useState<SourceView[]>(initial.sources);
   const [changes, setChanges] = useState<Change[]>(initial.changes);
   const [notifs, setNotifs] = useState<Notification[]>(initial.notifications);
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [openCountry, setOpenCountry] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [notifOpen, setNotifOpen] = useState(false);
   const [healthOpen, setHealthOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [confirmDel, setConfirmDel] = useState<string | null>(null);
   const [toasts, setToasts] = useState<{ id: number; msg: string; icon: string; tone: string }[]>([]);
   const [lastCheck, setLastCheck] = useState("hace unos minutos");
+  const [onboarding, setOnboarding] = useState(true);
 
-  const changeBySource = (id: string) => changes.find((c) => c.sourceId === id && !c.atendido);
+  const activo = (c: Change) => (c.estadoCambio ?? "activo") === "activo";
+  const changesOf = (sid: string) => changes.filter((c) => c.sourceId === sid).sort((a, b) => (a.detectadoEn < b.detectadoEn ? 1 : -1));
+  const activeOf = (sid: string) => changesOf(sid).find(activo);
+
   const counts = useMemo(() => {
-    let a = 0, w = 0, o = 0;
-    sources.forEach((s) => (s.estado === "cambio" ? a++ : s.estado === "base" ? w++ : o++));
-    return { a, w, o };
+    let a = 0, o = 0;
+    sources.forEach((s) => (s.estado === "cambio" ? a++ : o++));
+    return { a, o };
   }, [sources]);
   const unread = notifs.filter((n) => !n.leido).length;
 
   function toast(msg: string, icon = "", tone = "alert") {
     const id = Date.now() + Math.random();
     setToasts((t) => [...t, { id, msg, icon, tone }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 2600);
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 2800);
+  }
+  function applyState(st: RadarState) {
+    setSources(st.sources); setChanges(st.changes); setNotifs(st.notifications);
   }
 
   async function runScan() {
     if (scanning) return;
     setScanning(true);
-    fetch("/api/scan").catch(() => {});
-    setTimeout(() => {
-      setScanning(false);
+    try {
+      const r = await fetch("/api/scan");
+      const data = await r.json();
+      if (data.state) applyState(data.state);
       setLastCheck("hace unos segundos");
-      let revealed: string | null = null;
-      setSources((prev) =>
-        prev.map((s) => {
-          if (s.estado === "base" && changeBySource(s.id)) {
-            revealed = s.id;
-            return { ...s, estado: "cambio", ultimaRevision: "hace un momento" };
-          }
-          return { ...s, ultimaRevision: "hace un momento" };
-        })
-      );
-      if (revealed) {
-        const c = changeBySource(revealed)!;
-        const src = sources.find((s) => s.id === revealed)!;
-        setNotifs((n) => [
-          { id: "n-live-" + revealed, sourceId: revealed!, tone: "alert", titulo: `${src.pais} · ${src.entidad.split(" ")[0]}`, detalle: c.titulo, cuando: "ahora", leido: false },
-          ...n,
-        ]);
-        toast(`Cambio detectado en ${src.pais} · ${src.entidad.split(" ")[0]}`, "🔴");
-      } else {
-        toast("Radar actualizado. Sin cambios nuevos.", "✓", "ok");
-      }
-    }, 1350);
+      const n = data.detectados?.length || 0;
+      if (n > 0) toast(`${n} cambio${n === 1 ? "" : "s"} nuevo${n === 1 ? "" : "s"} detectado${n === 1 ? "" : "s"}`, "🔴");
+      else toast("Radar actualizado. Sin cambios nuevos.", "✓", "ok");
+    } catch { toast("No se pudo completar la revisión.", "⚠️"); }
+    setScanning(false);
   }
 
-  function markAttended(id: string) {
-    setChanges((cs) => cs.map((c) => (c.sourceId === id ? { ...c, atendido: true } : c)));
-    setSources((ss) => ss.map((s) => (s.id === id ? { ...s, estado: "ok", okDesde: "hoy" } : s)));
-    setNotifs((n) => n.filter((x) => x.sourceId !== id));
-    setOpenId(null);
-    const src = sources.find((s) => s.id === id);
-    toast(`${src?.pais} marcado como atendido`, "✓", "ok");
+  async function doAction(accion: string, opts: { id?: string; sourceId?: string }) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const r = await fetch("/api/action", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ accion, ...opts }) });
+      const data = await r.json();
+      if (data.state) applyState(data.state);
+      const msgs: Record<string, string> = { atender: "Marcado como atendido", archivar: "Archivado", reabrir: "Reabierto", eliminar: "Eliminado", simular: "Detección simulada creada" };
+      toast(msgs[accion] || "Listo", accion === "simular" ? "🔴" : "✓", accion === "simular" ? "alert" : "ok");
+    } catch { toast("No se pudo completar la acción.", "⚠️"); }
+    setBusy(false);
+    setConfirmDel(null);
   }
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setOpenId(null); setNotifOpen(false); } };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setOpenCountry(null); setNotifOpen(false); } };
     const onClick = () => setNotifOpen(false);
     document.addEventListener("keydown", onKey);
     document.addEventListener("click", onClick);
     return () => { document.removeEventListener("keydown", onKey); document.removeEventListener("click", onClick); };
   }, []);
 
-  const openSource = openId ? sources.find((s) => s.id === openId) : null;
-  const openChange = openId ? changeBySource(openId) : null;
+  const oc = openCountry ? sources.find((s) => s.id === openCountry) : null;
 
   return (
     <>
@@ -102,7 +104,7 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
               <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 01-3.46 0" /></svg>
               {unread > 0 && <span className="badge">{unread}</span>}
             </button>
-            <button className={"btn btn-primary" + (scanning ? " scanning" : "")} onClick={runScan}>
+            <button className={"btn btn-primary" + (scanning ? " scanning" : "")} onClick={runScan} title="Revisa las fuentes oficiales ahora mismo">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 11-6.219-8.56" /></svg>
               <span className="lbl">{scanning ? "Escaneando…" : "Revisar ahora"}</span>
             </button>
@@ -116,10 +118,22 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
           <p>Vigilamos a las entidades fiscales de cada país donde opera Alegra y te avisamos apenas la norma cambia. Sin que tengas que revisar una por una.</p>
         </div>
 
+        {onboarding && (
+          <div style={{ background: "linear-gradient(180deg,#F3FCFA,#fff)", border: "1px solid #bfeee4", borderRadius: 14, padding: "14px 16px", marginBottom: 18, display: "flex", gap: 12, alignItems: "flex-start" }}>
+            <span style={{ fontSize: 20, lineHeight: 1 }}>👋</span>
+            <div style={{ flex: 1, fontSize: 13.5, lineHeight: 1.5, color: "var(--ink)" }}>
+              <b>Bienvenida.</b> Cada tarjeta de abajo es un país. El color te dice todo: <b style={{ color: "var(--ok)" }}>verde</b> = todo en orden, <b style={{ color: "var(--alert)" }}>rojo</b> = algo cambió. <b>Haz clic en cualquier país</b> para ver su historial completo y gestionar los cambios (marcar atendido, archivar, etc.). El botón <b>«Revisar ahora»</b> arriba consulta las fuentes oficiales en vivo.
+            </div>
+            <button onClick={() => setOnboarding(false)} style={{ border: "1px solid var(--line)", background: "#fff", borderRadius: 8, padding: "4px 10px", fontWeight: 700, fontSize: 12, color: "var(--muted)" }}>Entendido</button>
+          </div>
+        )}
+
         <div className="statusline">
           <span>Última revisión <b>{lastCheck}</b></span><span className="sep" />
           <span>Próxima <b>{initial.meta.proxima}</b></span><span className="sep" />
           <span><b>{sources.length}</b> fuentes activas</span>
+          <span className="sep" />
+          <span className="mono" style={{ color: "var(--faint)" }}>modo: {initial.meta.modo === "supabase" ? "en vivo" : "demo"}</span>
           <button className="link-btn" onClick={() => setHealthOpen((v) => !v)}>{healthOpen ? "Ocultar estado de fuentes" : "Ver estado de fuentes"}</button>
         </div>
 
@@ -136,33 +150,32 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
         )}
 
         <div className="chips">
-          <div className="chip alert"><span className="sw" /><span className="n">{counts.a}</span> {counts.a === 1 ? "cambio nuevo" : "cambios nuevos"}</div>
-          <div className="chip warn"><span className="sw" /><span className="n">{counts.w}</span> por revisar</div>
+          <div className="chip alert"><span className="sw" /><span className="n">{counts.a}</span> {counts.a === 1 ? "país con cambios" : "países con cambios"}</div>
           <div className="chip ok"><span className="sw" /><span className="n">{counts.o}</span> en orden</div>
         </div>
 
+        <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 12, fontWeight: 600 }}>👆 Haz clic en un país para ver su historial y gestionar los cambios.</div>
+
         <div className="grid">
           {sources.map((s) => {
-            const c = changeBySource(s.id);
-            const headline = s.estado === "cambio" && c ? c.titulo
-              : s.estado === "base" ? "Snapshot base listo. Revisa para comparar con la versión de hoy."
-              : `Todo en orden. Sin cambios desde el ${s.okDesde}.`;
-            const btnLabel = s.estado === "cambio" ? "Ver qué cambió" : s.estado === "base" ? "Ver detalle" : "Ver fuente";
-            const btnClass = s.estado === "cambio" ? "btn-primary" : "btn-ghost";
+            const c = activeOf(s.id);
+            const isAlert = s.estado === "cambio";
+            const headline = c ? c.titulo : `Todo en orden. Sin cambios desde el ${s.okDesde || "la última revisión"}.`;
             return (
-              <div className={"card " + cardClass[s.estado]} key={s.id}>
+              <div className={"card " + (isAlert ? "is-alert" : "is-ok")} key={s.id} onClick={() => { setOpenCountry(s.id); setExpandedId(activeOf(s.id)?.id || null); }} style={{ cursor: "pointer" }}>
                 <div className="card-accent" />
                 <div className="card-top">
                   <span className="flag">{s.bandera}</span>
                   <div><div className="card-country">{s.pais}</div><div className="card-entity">{s.entidad}</div></div>
-                  <span className={"state " + stateClass[s.estado]}><span className="dot" />{stateLabel[s.estado]}</span>
+                  <span className={"state " + (isAlert ? "alert" : "ok")}><span className="dot" />{isAlert ? "Algo cambió" : "Todo en orden"}</span>
                 </div>
                 <div className="card-headline">{headline}</div>
-                {s.estado === "cambio" && c && (
-                  <div className="ptags">{c.productos.map((p) => <span className="ptag" key={p}>{p}</span>)}</div>
-                )}
-                <div className="card-meta"><span className="mono">◔ {s.ultimaRevision}</span></div>
-                <button className={"btn card-btn " + btnClass} onClick={() => (s.estado === "base" ? runScan() : setOpenId(s.id))}>{btnLabel}</button>
+                {c && <div className="ptags">{c.productos.map((p) => <span className="ptag" key={p}>{p}</span>)}</div>}
+                <div className="card-meta">
+                  <span className="mono">◔ {s.ultimaRevision}</span>
+                  {s.totalHistorial > 0 && <span className="mono" style={{ color: "var(--action-dark)", fontWeight: 700 }}>· {s.totalHistorial} en historial</span>}
+                </div>
+                <button className={"btn card-btn " + (isAlert ? "btn-primary" : "btn-ghost")}>Ver país e historial →</button>
               </div>
             );
           })}
@@ -170,7 +183,7 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
       </div>
 
       <p className="footnote">
-        <b>Fuentes oficiales.</b> El radar solo se conecta a entidades oficiales (SAT, DIAN, SUNAT, DGII, Hacienda, DGI, SENIAT, ARCA, AEAT). Corre automático por Vercel Cron; el botón «Revisar ahora» es opcional. Casos con datos reales y verificables: SAT (México · CFDI 4.0, vigente 17-jul-2026) y DIAN (Colombia · Res. 000202 y 000227 de 2025).
+        <b>Fuentes oficiales.</b> El radar solo se conecta a entidades oficiales (SAT, DIAN, SUNAT, DGII, Hacienda, DGI, SENIAT, ARCA, AEAT). Corre automático por Vercel Cron; «Revisar ahora» es opcional. Casos reales verificables: SAT (México · CFDI 4.0, 17-jul-2026) y DIAN (Colombia · Res. 000202 y 000227 de 2025).
       </p>
 
       <div className={"notif" + (notifOpen ? " open" : "")} onClick={(e) => e.stopPropagation()}>
@@ -179,7 +192,7 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
           {notifs.length === 0 ? (
             <div className="notif-empty">Sin novedades. Todo tranquilo por aquí.</div>
           ) : notifs.map((n) => (
-            <div className="notif-item" key={n.id} onClick={() => { setNotifOpen(false); setOpenId(n.sourceId); }}>
+            <div className="notif-item" key={n.id} onClick={() => { setNotifOpen(false); setOpenCountry(n.sourceId); }}>
               <span className={"notif-dot " + n.tone} />
               <div><div className="t">{n.titulo}</div><div className="d">{n.detalle}</div><div className="ago mono">{n.cuando}</div></div>
             </div>
@@ -187,33 +200,69 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
         </div>
       </div>
 
-      <div className={"scrim" + (openId ? " open" : "")} onClick={() => setOpenId(null)} />
-      <aside className={"panel" + (openId ? " open" : "")} aria-hidden={!openId}>
-        {openSource && (
+      <div className={"scrim" + (openCountry ? " open" : "")} onClick={() => setOpenCountry(null)} />
+      <aside className={"panel" + (openCountry ? " open" : "")} aria-hidden={!openCountry}>
+        {oc && (
           <>
             <div className="panel-head">
-              <span className="flag">{openSource.bandera}</span>
+              <span className="flag">{oc.bandera}</span>
               <div>
-                <div style={{ fontWeight: 800, fontSize: 15 }}>{openSource.pais}</div>
-                <div style={{ fontSize: 12, color: "var(--faint)", fontWeight: 600 }}>{openSource.fuenteNombre}</div>
+                <div style={{ fontWeight: 800, fontSize: 15 }}>{oc.pais}</div>
+                <div style={{ fontSize: 12, color: "var(--faint)", fontWeight: 600 }}>{oc.fuenteNombre}</div>
               </div>
-              <button className="panel-close" aria-label="Cerrar" onClick={() => setOpenId(null)}>✕</button>
+              <button className="panel-close" aria-label="Cerrar" onClick={() => setOpenCountry(null)}>✕</button>
             </div>
             <div className="panel-body">
-              {openChange ? (
-                <ChangeDetail change={openChange} source={openSource} onAttend={() => markAttended(openSource.id)} onToast={toast} />
-              ) : (
-                <>
-                  <div className="sev media" style={{ color: "var(--ok)", background: "var(--ok-bg)" }}>● Todo en orden</div>
-                  <div className="panel-title">Sin cambios detectados</div>
-                  <div className="panel-source">
-                    <span className="tag">Última revisión: {openSource.ultimaRevision}</span>
-                    {openSource.okDesde && <span className="tag">Sin cambios desde {openSource.okDesde}</span>}
-                    <span className="tag"><a href={openSource.fuenteUrl} target="_blank" rel="noopener">Abrir fuente oficial ↗</a></span>
+              <div style={{ background: "var(--bg)", border: "1px dashed #bfeee4", borderRadius: 12, padding: "11px 13px", fontSize: 12.5, color: "var(--muted)", lineHeight: 1.5, marginBottom: 14 }}>
+                📜 Este es el <b>historial de {oc.pais}</b>. Cada tarjeta es una actualización detectada. Haz clic en una para ver el detalle, el <b>Antes → Después</b>, el documento técnico y para <b>gestionarla</b>.
+              </div>
+
+              <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+                <button className="btn btn-primary" disabled={busy} onClick={() => doAction("simular", { sourceId: oc.id })} title="Crea una detección de ejemplo para demostrar el flujo completo (ideal para el video)">
+                  {busy ? "Simulando…" : "＋ Simular detección"}<span style={{ fontSize: 10, fontWeight: 800, background: "rgba(0,0,0,.12)", borderRadius: 5, padding: "1px 5px", marginLeft: 4 }}>DEMO</span>
+                </button>
+                <a className="btn btn-ghost" href={oc.fuenteUrl} target="_blank" rel="noopener">Abrir fuente oficial ↗</a>
+              </div>
+
+              {oc.textoExtraido && (
+                <details className="acc" style={{ marginBottom: 14 }}>
+                  <summary><span>Información extraída de la fuente</span><span className="lbl">EN VIVO</span><span className="chev">▾</span></summary>
+                  <div className="acc-body">
+                    <div className="note" style={{ marginTop: 6 }}>Esto es lo que el radar leyó de la página oficial {oc.fuenteCapturadaEn ? `(${fmtFecha(oc.fuenteCapturadaEn)})` : ""}:</div>
+                    <pre style={{ marginTop: 8, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11.5, lineHeight: 1.5, background: "#0B2B26", color: "#CFF7ED", padding: "11px 13px", borderRadius: 10, whiteSpace: "pre-wrap", maxHeight: 160, overflowY: "auto" }}>{oc.textoExtraido.slice(0, 700)}</pre>
                   </div>
-                  <div className="qblock"><h3>◇ Qué estamos vigilando</h3>
-                    <p>Comparamos periódicamente la publicación oficial de {openSource.fuenteNombre}. Si algo cambia, te avisamos aquí y por Google Chat. Por ahora, nada nuevo.</p></div>
-                </>
+                </details>
+              )}
+
+              {changesOf(oc.id).length === 0 ? (
+                <div className="qblock"><h3>◇ Sin cambios registrados</h3><p>El radar está vigilando {oc.fuenteNombre}. Cuando detecte un cambio, aparecerá aquí. Puedes usar «Simular detección» para ver cómo se vería.</p></div>
+              ) : (
+                <div style={{ position: "relative", paddingLeft: 22 }}>
+                  <div style={{ position: "absolute", left: 6, top: 6, bottom: 6, width: 2, background: "var(--line)" }} />
+                  {changesOf(oc.id).map((c) => {
+                    const est = c.estadoCambio ?? "activo";
+                    const dotColor = est === "atendido" ? "var(--ok)" : est === "archivado" ? "var(--faint)" : "var(--alert)";
+                    const open = expandedId === c.id;
+                    return (
+                      <div key={c.id} style={{ position: "relative", marginBottom: 14, opacity: est === "archivado" ? 0.7 : 1 }}>
+                        <div style={{ position: "absolute", left: -22, top: 5, width: 12, height: 12, borderRadius: "50%", background: dotColor, border: "2px solid #fff", boxShadow: "0 0 0 2px var(--line)" }} />
+                        <div style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 12, overflow: "hidden" }}>
+                          <div onClick={() => setExpandedId(open ? null : c.id)} style={{ padding: "12px 14px", cursor: "pointer" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 5 }}>
+                              <span className="mono" style={{ fontSize: 11, color: "var(--faint)" }}>{fmtFecha(c.detectadoEn)}</span>
+                              <span style={{ fontSize: 10.5, fontWeight: 800, padding: "2px 8px", borderRadius: 999, color: dotColor, background: est === "atendido" ? "var(--ok-bg)" : est === "archivado" ? "var(--bg)" : "var(--alert-bg)" }}>{estadoLabel[est]}</span>
+                              {c.simulacion && <span style={{ fontSize: 10, fontWeight: 800, color: "var(--muted)", background: "var(--bg)", border: "1px solid var(--line)", borderRadius: 5, padding: "1px 6px" }}>simulación</span>}
+                              <span style={{ marginLeft: "auto", color: "var(--faint)", transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }}>▾</span>
+                            </div>
+                            <div style={{ fontWeight: 700, fontSize: 14, lineHeight: 1.35 }}>{c.titulo}</div>
+                            <div className="ptags" style={{ marginTop: 7 }}>{c.productos.map((p) => <span className="ptag" key={p}>{p}</span>)}</div>
+                          </div>
+                          {open && <ChangeBody c={c} source={oc} busy={busy} confirmDel={confirmDel} setConfirmDel={setConfirmDel} doAction={doAction} onToast={toast} />}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
           </>
@@ -232,20 +281,10 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
   );
 }
 
-function ChangeDetail({ change: c, source: s, onAttend, onToast }: { change: Change; source: any; onAttend: () => void; onToast: (m: string, i?: string, t?: string) => void }) {
+function ChangeBody({ c, source: s, busy, confirmDel, setConfirmDel, doAction, onToast }: any) {
+  const est = c.estadoCambio ?? "activo";
   return (
-    <>
-      <span className={"sev " + c.severidad}>● Severidad {c.severidad}</span>
-      <div className="panel-title">{c.titulo}</div>
-      <div className="panel-source">
-        <span className="tag mono">{c.vigencia}</span>
-        <span className="tag">Fuente oficial · señal técnica</span>
-        <span className="tag"><a href={s.fuenteUrl} target="_blank" rel="noopener">Ver en {s.entidad.split(" ")[0]} ↗</a></span>
-      </div>
-
-      <div className="qblock"><h3>◇ Productos afectados</h3>
-        <div className="ptags">{c.productos.map((p) => <span className="ptag" key={p}>{p}</span>)}</div>
-      </div>
+    <div style={{ borderTop: "1px solid var(--line)", padding: "4px 14px 14px" }}>
       <div className="qblock"><h3>① Qué cambió</h3><p>{c.quePaso}</p></div>
 
       {c.antes && c.despues && (
@@ -261,23 +300,23 @@ function ChangeDetail({ change: c, source: s, onAttend, onToast }: { change: Cha
               <p style={{ fontSize: 13, lineHeight: 1.45, color: "var(--ink)" }}>{c.despues.texto}</p>
             </div>
           </div>
-          {c.diff && (
-            <pre style={{ marginTop: 10, fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, lineHeight: 1.5, background: "#0B2B26", color: "#CFF7ED", padding: "11px 13px", borderRadius: 10, whiteSpace: "pre-wrap", overflowX: "auto" }}>{c.diff}</pre>
-          )}
         </div>
+      )}
+      {c.diff && (
+        <pre style={{ marginTop: 4, fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, lineHeight: 1.5, background: "#0B2B26", color: "#CFF7ED", padding: "11px 13px", borderRadius: 10, whiteSpace: "pre-wrap", overflowX: "auto" }}>{c.diff}</pre>
       )}
 
       <div className="qblock"><h3>② Qué significa para nuestros usuarios</h3><p>{c.queSignifica}</p></div>
       <div className="qblock do"><h3>③ Qué tiene que hacer Producto</h3>
-        <ul className="checklist">{c.queHacer.map((x, i) => <li key={i}><span className="box">✓</span><span>{x}</span></li>)}</ul>
+        <ul className="checklist">{c.queHacer.map((x: string, i: number) => <li key={i}><span className="box">✓</span><span>{x}</span></li>)}</ul>
       </div>
 
       <details className="acc"><summary><span>Documento técnico</span><span className="lbl">RIA · RRD · GAP</span><span className="chev">▾</span></summary>
         <div className="acc-body">
           <div style={{ fontWeight: 800, fontSize: 12, letterSpacing: ".05em", color: "var(--action-dark)", margin: "6px 0 4px" }}>EVALUACIÓN DE IMPACTO (RIA)</div>
-          {c.analisis.ria.map((r, i) => <div className="doc-row" key={i}><b>{r[0]}</b>{r[1]}</div>)}
+          {c.analisis.ria.map((r: string[], i: number) => <div className="doc-row" key={i}><b>{r[0]}</b>{r[1]}</div>)}
           <div style={{ fontWeight: 800, fontSize: 12, letterSpacing: ".05em", color: "var(--action-dark)", margin: "16px 0 4px" }}>REQUERIMIENTOS (RRD)</div>
-          {c.analisis.rrd.map((r, i) => <div className="doc-req" key={i}><span className="rid">{r[0]}</span><span>{r[1]}</span></div>)}
+          {c.analisis.rrd.map((r: string[], i: number) => <div className="doc-req" key={i}><span className="rid">{r[0]}</span><span>{r[1]}</span></div>)}
           <div className="note">{c.analisis.rrdAccept}</div>
           <div style={{ fontWeight: 800, fontSize: 12, letterSpacing: ".05em", color: "var(--action-dark)", margin: "16px 0 6px" }}>GAP ANALYSIS</div>
           <div className="gap-row">
@@ -293,29 +332,23 @@ function ChangeDetail({ change: c, source: s, onAttend, onToast }: { change: Cha
         </div>
       </details>
 
-      <details className="acc"><summary><span>Así se avisó al equipo</span><span className="lbl">GOOGLE CHAT · EMAIL</span><span className="chev">▾</span></summary>
-        <div className="acc-body">
-          <div className="gchat">
-            <div className="gchat-head"><div className="gchat-av">R</div>
-              <div className="gchat-name">Alegra Regulation Radar <span>· app · ahora</span></div></div>
-            <div className="gchat-msg">
-              <div className="m-title">🔴 {s.pais} · {s.entidad.split(" ")[0]}</div>
-              {c.titulo}. <br />Qué implica: {c.queSignifica}
-              <div><span className="gchat-btn">Abrir en el Radar ↗</span></div>
-            </div>
-          </div>
-          <div style={{ marginTop: 14 }}>
-            <div className="chan">✉️ Correo a Product Regulation <span className="ok-tick">✓ enviado</span></div>
-            <div className="chan">💬 Google Chat · Product Regulation <span className="ok-tick">✓ enviado</span></div>
-            <div className="chan">💬 Google Chat · squads de {c.productos.slice(0, 2).join(" y ")} <span className="ok-tick">✓ enviado</span></div>
-          </div>
+      <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--line)" }}>
+        <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--faint)", marginBottom: 8 }}>¿Qué quieres hacer con este cambio?</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {est === "activo" && <button className="btn btn-primary" disabled={busy} onClick={() => doAction("atender", { id: c.id })}>✓ Marcar atendido</button>}
+          {est !== "activo" && <button className="btn btn-ghost" disabled={busy} onClick={() => doAction("reabrir", { id: c.id })}>↺ Reabrir</button>}
+          {est !== "archivado" && <button className="btn btn-ghost" disabled={busy} onClick={() => doAction("archivar", { id: c.id })}>🗄 Archivar</button>}
+          {confirmDel === c.id ? (
+            <>
+              <span style={{ fontSize: 12.5, color: "var(--alert)", fontWeight: 700, alignSelf: "center" }}>¿Seguro?</span>
+              <button className="btn" style={{ background: "var(--alert)", color: "#fff" }} disabled={busy} onClick={() => doAction("eliminar", { id: c.id })}>Sí, eliminar</button>
+              <button className="btn btn-ghost" onClick={() => setConfirmDel(null)}>Cancelar</button>
+            </>
+          ) : (
+            <button className="btn btn-ghost" style={{ color: "var(--alert)", borderColor: "#f5b7b0" }} onClick={() => setConfirmDel(c.id)}>🗑 Eliminar</button>
+          )}
         </div>
-      </details>
-
-      <div className="panel-actions">
-        <button className="btn btn-primary" onClick={() => onToast("Enviado a Producto", "✓", "ok")}>Enviar a Producto</button>
-        <button className="btn btn-ghost" onClick={onAttend}>Marcar como atendido</button>
       </div>
-    </>
+    </div>
   );
 }
