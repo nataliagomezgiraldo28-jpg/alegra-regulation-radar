@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Radar Regulatorio · Alegra",
+  title: "Alegra Regulation Radar",
   description: "Vigila las entidades fiscales de cada país donde opera Alegra y avisa cuando la norma cambia.",
 };
 
