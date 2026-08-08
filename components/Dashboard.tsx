@@ -35,12 +35,10 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
   async function runScan() {
     if (scanning) return;
     setScanning(true);
-    // Dispara el radar real en el backend (best-effort; en modo seed no rompe).
     fetch("/api/scan").catch(() => {});
     setTimeout(() => {
       setScanning(false);
       setLastCheck("hace unos segundos");
-      // Revela los cambios "base" (México) como detección en vivo.
       let revealed: string | null = null;
       setSources((prev) =>
         prev.map((s) => {
@@ -89,14 +87,13 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
     <>
       {scanning && <div className="scan-sweep" />}
 
-      {/* Top bar */}
       <div className="topbar">
         <div className="topbar-inner">
           <div className="brand">
             <div className="brand-dot" />
             <div>
-              <div className="brand-name">Radar Regulatorio</div>
-              <div className="brand-sub">Alegra · Product Regulation</div>
+              <div className="brand-name">Alegra Regulation Radar</div>
+              <div className="brand-sub">Product Regulation</div>
             </div>
           </div>
           <div className="top-actions">
@@ -176,7 +173,6 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
         <b>Fuentes oficiales.</b> El radar solo se conecta a entidades oficiales (SAT, DIAN, SUNAT, DGII, Hacienda, DGI, SENIAT, ARCA, AEAT). Corre automático por Vercel Cron; el botón «Revisar ahora» es opcional. Casos con datos reales y verificables: SAT (México · CFDI 4.0, vigente 17-jul-2026) y DIAN (Colombia · Res. 000202 y 000227 de 2025).
       </p>
 
-      {/* Notifications */}
       <div className={"notif" + (notifOpen ? " open" : "")} onClick={(e) => e.stopPropagation()}>
         <div className="notif-head">Notificaciones <button onClick={() => setNotifs((n) => n.map((x) => ({ ...x, leido: true })))}>Marcar todo leído</button></div>
         <div className="notif-list">
@@ -191,7 +187,6 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
         </div>
       </div>
 
-      {/* Detail panel */}
       <div className={"scrim" + (openId ? " open" : "")} onClick={() => setOpenId(null)} />
       <aside className={"panel" + (openId ? " open" : "")} aria-hidden={!openId}>
         {openSource && (
@@ -225,7 +220,6 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
         )}
       </aside>
 
-      {/* Toasts */}
       <div className="toast-wrap">
         {toasts.map((t) => (
           <div className="toast" key={t.id}>
@@ -253,6 +247,26 @@ function ChangeDetail({ change: c, source: s, onAttend, onToast }: { change: Cha
         <div className="ptags">{c.productos.map((p) => <span className="ptag" key={p}>{p}</span>)}</div>
       </div>
       <div className="qblock"><h3>① Qué cambió</h3><p>{c.quePaso}</p></div>
+
+      {c.antes && c.despues && (
+        <div className="qblock">
+          <h3>◈ Antes → Después</h3>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 4 }}>
+            <div style={{ background: "var(--bg)", border: "1px solid var(--line)", borderRadius: 10, padding: "11px 13px" }}>
+              <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--faint)", marginBottom: 4 }}>Antes · {c.antes.etiqueta}</div>
+              <p style={{ fontSize: 13, lineHeight: 1.45, color: "var(--muted)" }}>{c.antes.texto}</p>
+            </div>
+            <div style={{ background: "var(--ok-bg)", border: "1px solid #bfeee4", borderRadius: 10, padding: "11px 13px" }}>
+              <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--action-dark)", marginBottom: 4 }}>Después · {c.despues.etiqueta}</div>
+              <p style={{ fontSize: 13, lineHeight: 1.45, color: "var(--ink)" }}>{c.despues.texto}</p>
+            </div>
+          </div>
+          {c.diff && (
+            <pre style={{ marginTop: 10, fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, lineHeight: 1.5, background: "#0B2B26", color: "#CFF7ED", padding: "11px 13px", borderRadius: 10, whiteSpace: "pre-wrap", overflowX: "auto" }}>{c.diff}</pre>
+          )}
+        </div>
+      )}
+
       <div className="qblock"><h3>② Qué significa para nuestros usuarios</h3><p>{c.queSignifica}</p></div>
       <div className="qblock do"><h3>③ Qué tiene que hacer Producto</h3>
         <ul className="checklist">{c.queHacer.map((x, i) => <li key={i}><span className="box">✓</span><span>{x}</span></li>)}</ul>
@@ -283,7 +297,7 @@ function ChangeDetail({ change: c, source: s, onAttend, onToast }: { change: Cha
         <div className="acc-body">
           <div className="gchat">
             <div className="gchat-head"><div className="gchat-av">R</div>
-              <div className="gchat-name">Radar Regulatorio <span>· app · ahora</span></div></div>
+              <div className="gchat-name">Alegra Regulation Radar <span>· app · ahora</span></div></div>
             <div className="gchat-msg">
               <div className="m-title">🔴 {s.pais} · {s.entidad.split(" ")[0]}</div>
               {c.titulo}. <br />Qué implica: {c.queSignifica}
