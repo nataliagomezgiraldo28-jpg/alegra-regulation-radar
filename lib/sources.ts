@@ -1,18 +1,5 @@
 import { Source } from "./types";
 
-// -----------------------------------------------------------------------------
-// REGISTRO DE FUENTES  (el corazón de la escalabilidad)
-// Agregar un país o una entidad = agregar un objeto aquí. Nada más cambia.
-// Solo fuentes oficiales. URLs apuntan a la página exacta que se vigila.
-//
-// adapter:
-//   "html"      -> el radar la lee en vivo y detecta cambios (diff real).
-//   "seed-only" -> se muestra en monitoreo (sin lectura en vivo por ahora).
-// capa:
-//   "tecnica"   -> resoluciones, anexos, catálogos (señal accionable).
-//   "temprana"  -> gacetas, proyectos de decreto, congreso (señal anticipada).
-// -----------------------------------------------------------------------------
-
 export const PRODUCTOS = [
   "Facturación electrónica",
   "Nómina electrónica",
@@ -105,3 +92,36 @@ export const SOURCES: Source[] = [
   {
     id: "ve",
     pais: "Venezuela",
+    bandera: "🇻🇪",
+    entidad: "SENIAT · Facturación",
+    fuenteNombre: "SENIAT · Facturación",
+    fuenteUrl: "http://www.seniat.gob.ve",
+    capa: "tecnica",
+    productosPosibles: ["Facturación electrónica", "Contabilidad"],
+    adapter: "seed-only",
+  },
+  {
+    id: "ar",
+    pais: "Argentina",
+    bandera: "🇦🇷",
+    entidad: "ARCA · Comprobantes",
+    fuenteNombre: "ARCA (ex-AFIP) · Comprobantes electrónicos",
+    fuenteUrl: "https://www.arca.gob.ar/facturacion/",
+    capa: "tecnica",
+    productosPosibles: ["Facturación electrónica", "API e Integraciones"],
+    adapter: "seed-only",
+  },
+  {
+    id: "es",
+    pais: "España",
+    bandera: "🇪🇸",
+    entidad: "AEAT · Fact. electrónica",
+    fuenteNombre: "AEAT · Facturación electrónica",
+    fuenteUrl: "https://sede.agenciatributaria.gob.es",
+    capa: "tecnica",
+    productosPosibles: ["Facturación electrónica", "API e Integraciones"],
+    adapter: "seed-only",
+  },
+];
+
+export const sourceById = (id: string) => SOURCES.find((s) => s.id === id);
