@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { RadarState, Change, Notification, SourceView } from "@/lib/types";
 
 const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
@@ -15,6 +15,7 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
   const [sources, setSources] = useState<SourceView[]>(initial.sources);
   const [changes, setChanges] = useState<Change[]>(initial.changes);
   const [notifs, setNotifs] = useState<Notification[]>(initial.notifications);
+  const [view, setView] = useState<"vigente" | "temprana">("vigente");
   const [openCountry, setOpenCountry] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -30,11 +31,11 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
   const changesOf = (sid: string) => changes.filter((c) => c.sourceId === sid).sort((a, b) => (a.detectadoEn < b.detectadoEn ? 1 : -1));
   const activeOf = (sid: string) => changesOf(sid).find(activo);
 
-  const counts = useMemo(() => {
-    let a = 0, o = 0;
-    sources.forEach((s) => (s.estado === "cambio" ? a++ : o++));
-    return { a, o };
-  }, [sources]);
+  const shownSources = sources.filter((s) => (view === "temprana" ? s.capa === "temprana" : s.capa !== "temprana"));
+  let cAlert = 0, cOk = 0;
+  shownSources.forEach((s) => (s.estado === "cambio" ? cAlert++ : cOk++));
+  const vigenteCount = sources.filter((s) => s.capa !== "temprana").length;
+  const tempranaCount = sources.filter((s) => s.capa === "temprana").length;
   const unread = notifs.filter((n) => !n.leido).length;
 
   function toast(msg: string, icon = "", tone = "alert") {
@@ -85,6 +86,7 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
 
   return (
     <>
+      <div className="stars"><i /><i /><i /></div>
       {scanning && <div className="scan-sweep" />}
 
       <div className="topbar">
@@ -117,71 +119,95 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
         </div>
 
         {onboarding && (
-          <div style={{ background: "linear-gradient(180deg,#F3FCFA,#fff)", border: "1px solid #bfeee4", borderRadius: 14, padding: "14px 16px", marginBottom: 18, display: "flex", gap: 12, alignItems: "flex-start" }}>
+          <div className="onboard">
             <span style={{ fontSize: 20, lineHeight: 1 }}>👋</span>
             <div style={{ flex: 1, fontSize: 13.5, lineHeight: 1.5, color: "var(--ink)" }}>
-              <b>Bienvenida.</b> Cada tarjeta de abajo es un país. El color te dice todo: <b style={{ color: "var(--ok)" }}>verde</b> = todo en orden, <b style={{ color: "var(--alert)" }}>rojo</b> = algo cambió. <b>Haz clic en cualquier país</b> para ver su historial completo y gestionar los cambios (marcar atendido, archivar, etc.). El botón <b>«Revisar ahora»</b> arriba consulta las fuentes oficiales en vivo.
+              <b>Bienvenida.</b> A la izquierda eliges qué mirar: <b>Vigente / Por implementar</b> (cambios ya obligatorios) o <b>En el radar / Señales tempranas</b> (proyectos que aún no son ley). Cada tarjeta es un país: <b style={{ color: "var(--ok)" }}>verde</b> = en orden, <b style={{ color: "var(--alert)" }}>rojo</b> = algo cambió. Haz clic en un país para ver su historial y gestionarlo.
             </div>
             <button onClick={() => setOnboarding(false)} style={{ border: "1px solid var(--line)", background: "#fff", borderRadius: 8, padding: "4px 10px", fontWeight: 700, fontSize: 12, color: "var(--muted)" }}>Entendido</button>
           </div>
         )}
 
-        <div className="statusline">
-          <span>Última revisión <b>{lastCheck}</b></span><span className="sep" />
-          <span>Próxima <b>{initial.meta.proxima}</b></span><span className="sep" />
-          <span><b>{sources.length}</b> fuentes activas</span>
-          <span className="sep" />
-          <span className="mono" style={{ color: "var(--faint)" }}>modo: {initial.meta.modo === "supabase" ? "en vivo" : "demo"}</span>
-          <button className="link-btn" onClick={() => setHealthOpen((v) => !v)}>{healthOpen ? "Ocultar estado de fuentes" : "Ver estado de fuentes"}</button>
-        </div>
+        <div className="layout">
+          <aside className="sidebar">
+            <button className={"viewbtn" + (view === "vigente" ? " active" : "")} onClick={() => setView("vigente")}>
+              <span className="vb-icon">🔴</span>
+              <span><span className="vb-title">Vigente / Por implementar</span><span className="vb-sub">Cambios ya obligatorios · {vigenteCount} fuentes</span></span>
+            </button>
+            <button className={"viewbtn" + (view === "temprana" ? " active" : "")} onClick={() => setView("temprana")}>
+              <span className="vb-icon">🌊</span>
+              <span><span className="vb-title">En el radar / Señales tempranas</span><span className="vb-sub">Proyectos y propuestas · {tempranaCount} fuentes</span></span>
+            </button>
+            <div className="side-note">
+              {view === "vigente"
+                ? "Cambios ya publicados por las entidades oficiales. Requieren acción de Producto."
+                : "Proyectos de decreto y propuestas que aún no son obligación. Se vigilan para anticiparse."}
+            </div>
+          </aside>
 
-        {healthOpen && (
-          <div className="health open">
-            {sources.map((s) => (
-              <div className="health-item" key={s.id}>
-                <span className="h-dot" />
-                <span className="h-src">{s.bandera} {s.fuenteNombre}</span>
-                <span className="h-meta mono">revisada {s.ultimaRevision} · OK</span>
+          <div className="main">
+            <div className="statusline">
+              <span>Última revisión <b>{lastCheck}</b></span><span className="sep" />
+              <span>Próxima <b>{initial.meta.proxima}</b></span><span className="sep" />
+              <span><b>{sources.length}</b> fuentes activas</span>
+              <span className="sep" />
+              <span className="mono" style={{ color: "var(--faint)" }}>modo: {initial.meta.modo === "supabase" ? "en vivo" : "demo"}</span>
+              <button className="link-btn" onClick={() => setHealthOpen((v) => !v)}>{healthOpen ? "Ocultar estado de fuentes" : "Ver estado de fuentes"}</button>
+            </div>
+
+            {healthOpen && (
+              <div className="health open">
+                {shownSources.map((s) => (
+                  <div className="health-item" key={s.id}>
+                    <span className="h-dot" />
+                    <span className="h-src">{s.bandera} {s.fuenteNombre}</span>
+                    <span className="h-meta mono">revisada {s.ultimaRevision} · OK</span>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
+
+            <div className="chips">
+              <div className="chip alert"><span className="sw" /><span className="n">{cAlert}</span> {cAlert === 1 ? "país con cambios" : "países con cambios"}</div>
+              <div className="chip ok"><span className="sw" /><span className="n">{cOk}</span> en orden</div>
+            </div>
+
+            <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 12, fontWeight: 600 }}>👆 Haz clic en un país para ver su historial y gestionar los cambios.</div>
+
+            {shownSources.length === 0 ? (
+              <div className="qblock"><h3>◇ Sin fuentes en esta vista</h3><p>No hay fuentes configuradas en esta categoría por ahora.</p></div>
+            ) : (
+              <div className="grid">
+                {shownSources.map((s) => {
+                  const c = activeOf(s.id);
+                  const isAlert = s.estado === "cambio";
+                  const headline = c ? c.titulo : `Todo en orden. Sin cambios desde el ${s.okDesde || "la última revisión"}.`;
+                  return (
+                    <div className={"card " + (isAlert ? "is-alert" : "is-ok")} key={s.id} onClick={() => { setOpenCountry(s.id); setExpandedId(activeOf(s.id)?.id || null); }} style={{ cursor: "pointer" }}>
+                      <div className="card-accent" />
+                      <div className="card-top">
+                        <span className="flag">{s.bandera}</span>
+                        <div><div className="card-country">{s.pais}</div><div className="card-entity">{s.entidad}</div></div>
+                        <span className={"state " + (isAlert ? "alert" : "ok")}><span className="dot" />{isAlert ? "Algo cambió" : "Todo en orden"}</span>
+                      </div>
+                      <div className="card-headline">{headline}</div>
+                      {c && <div className="ptags">{c.productos.map((p) => <span className="ptag" key={p}>{p}</span>)}</div>}
+                      <div className="card-meta">
+                        <span className="mono">◔ {s.ultimaRevision}</span>
+                        {s.totalHistorial > 0 && <span className="mono" style={{ color: "var(--action-dark)", fontWeight: 700 }}>· {s.totalHistorial} en historial</span>}
+                      </div>
+                      <button className={"btn card-btn " + (isAlert ? "btn-primary" : "btn-ghost")}>Ver país e historial →</button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        )}
-
-        <div className="chips">
-          <div className="chip alert"><span className="sw" /><span className="n">{counts.a}</span> {counts.a === 1 ? "país con cambios" : "países con cambios"}</div>
-          <div className="chip ok"><span className="sw" /><span className="n">{counts.o}</span> en orden</div>
-        </div>
-
-        <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 12, fontWeight: 600 }}>👆 Haz clic en un país para ver su historial y gestionar los cambios.</div>
-
-        <div className="grid">
-          {sources.map((s) => {
-            const c = activeOf(s.id);
-            const isAlert = s.estado === "cambio";
-            const headline = c ? c.titulo : `Todo en orden. Sin cambios desde el ${s.okDesde || "la última revisión"}.`;
-            return (
-              <div className={"card " + (isAlert ? "is-alert" : "is-ok")} key={s.id} onClick={() => { setOpenCountry(s.id); setExpandedId(activeOf(s.id)?.id || null); }} style={{ cursor: "pointer" }}>
-                <div className="card-accent" />
-                <div className="card-top">
-                  <span className="flag">{s.bandera}</span>
-                  <div><div className="card-country">{s.pais}</div><div className="card-entity">{s.entidad}</div></div>
-                  <span className={"state " + (isAlert ? "alert" : "ok")}><span className="dot" />{isAlert ? "Algo cambió" : "Todo en orden"}</span>
-                </div>
-                <div className="card-headline">{headline}</div>
-                {c && <div className="ptags">{c.productos.map((p) => <span className="ptag" key={p}>{p}</span>)}</div>}
-                <div className="card-meta">
-                  <span className="mono">◔ {s.ultimaRevision}</span>
-                  {s.totalHistorial > 0 && <span className="mono" style={{ color: "var(--action-dark)", fontWeight: 700 }}>· {s.totalHistorial} en historial</span>}
-                </div>
-                <button className={"btn card-btn " + (isAlert ? "btn-primary" : "btn-ghost")}>Ver país e historial →</button>
-              </div>
-            );
-          })}
         </div>
       </div>
 
       <p className="footnote">
-        <b>Fuentes oficiales.</b> El radar solo se conecta a entidades oficiales (SAT, DIAN, SUNAT, DGII, Hacienda, DGI, SENIAT, ARCA, AEAT). Corre automático por Vercel Cron; «Revisar ahora» es opcional. Casos reales verificables: SAT (México · CFDI 4.0, 17-jul-2026) y DIAN (Colombia · Buscar documento, 28-jul-2026).
+        <b>Fuentes oficiales.</b> El radar solo se conecta a entidades oficiales (SAT, DIAN, MinHacienda, SUNAT, DGII, Hacienda, DGI, SENIAT, ARCA, AEAT). Corre automático por Vercel Cron; «Revisar ahora» es opcional. Casos reales verificables: SAT (México · CFDI 4.0, 17-jul-2026) y DIAN (Colombia · Buscar documento, 28-jul-2026).
       </p>
 
       {notifOpen && <div onClick={() => setNotifOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />}
@@ -213,19 +239,17 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
               <button className="panel-close" aria-label="Cerrar" onClick={() => setOpenCountry(null)}>✕</button>
             </div>
             <div className="panel-body">
-              {/* Letrero guía */}
               <div style={{ background: "var(--bg)", border: "1px dashed #bfeee4", borderRadius: 12, padding: "11px 13px", fontSize: 12.5, color: "var(--muted)", lineHeight: 1.5, marginBottom: 14 }}>
-                📜 Este es el <b>historial de {oc.pais}</b>. Cada tarjeta es una actualización detectada. Haz clic en una para ver el detalle, el <b>Antes → Después</b>, el documento técnico y para <b>gestionarla</b>.
+                📜 Este es el <b>historial de {oc.pais}</b>. Cada tarjeta es una actualización detectada. Haz clic en una para ver el detalle, el <b>Antes → Después</b>, el documento oficial y para <b>gestionarla</b>.
               </div>
 
               <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
-                <button className="btn btn-primary" disabled={busy} onClick={() => doAction("simular", { sourceId: oc.id })} title="Crea una detección de ejemplo para demostrar el flujo completo (ideal para el video)">
+                <button className="btn btn-primary" disabled={busy} onClick={() => doAction("simular", { sourceId: oc.id })} title="Crea una detección de ejemplo para demostrar el flujo completo">
                   {busy ? "Simulando…" : "＋ Simular detección"}<span style={{ fontSize: 10, fontWeight: 800, background: "rgba(0,0,0,.12)", borderRadius: 5, padding: "1px 5px", marginLeft: 4 }}>DEMO</span>
                 </button>
                 <a className="btn btn-ghost" href={oc.fuenteUrl} target="_blank" rel="noopener">Abrir fuente oficial ↗</a>
               </div>
 
-              {/* Timeline */}
               {changesOf(oc.id).length === 0 ? (
                 <div className="qblock"><h3>◇ Sin cambios registrados</h3><p>El radar está vigilando {oc.fuenteNombre}. Cuando detecte un cambio, aparecerá aquí. Puedes usar «Simular detección» para ver cómo se vería.</p></div>
               ) : (
@@ -249,7 +273,7 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
                             <div style={{ fontWeight: 700, fontSize: 14, lineHeight: 1.35 }}>{c.titulo}</div>
                             <div className="ptags" style={{ marginTop: 7 }}>{c.productos.map((p) => <span className="ptag" key={p}>{p}</span>)}</div>
                           </div>
-                          {open && <ChangeBody c={c} source={oc} busy={busy} confirmDel={confirmDel} setConfirmDel={setConfirmDel} doAction={doAction} onToast={toast} />}
+                          {open && <ChangeBody c={c} source={oc} busy={busy} confirmDel={confirmDel} setConfirmDel={setConfirmDel} doAction={doAction} />}
                         </div>
                       </div>
                     );
@@ -273,7 +297,7 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
   );
 }
 
-function ChangeBody({ c, source: s, busy, confirmDel, setConfirmDel, doAction, onToast }: any) {
+function ChangeBody({ c, source: s, busy, confirmDel, setConfirmDel, doAction }: any) {
   const est = c.estadoCambio ?? "activo";
   return (
     <div style={{ borderTop: "1px solid var(--line)", padding: "4px 14px 14px" }}>
@@ -296,7 +320,7 @@ function ChangeBody({ c, source: s, busy, confirmDel, setConfirmDel, doAction, o
       {c.antes && c.despues && (
         <div className="qblock">
           <h3>◈ Antes → Después</h3>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 4 }}>
+          <div className="ba-grid">
             <div style={{ background: "var(--bg)", border: "1px solid var(--line)", borderRadius: 10, padding: "11px 13px" }}>
               <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--faint)", marginBottom: 4 }}>Antes · {c.antes.etiqueta}</div>
               <p style={{ fontSize: 13, lineHeight: 1.45, color: "var(--muted)" }}>{c.antes.texto}</p>
@@ -338,7 +362,6 @@ function ChangeBody({ c, source: s, busy, confirmDel, setConfirmDel, doAction, o
         </div>
       </details>
 
-      {/* Acciones */}
       <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--line)" }}>
         <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--faint)", marginBottom: 8 }}>¿Qué quieres hacer con este cambio?</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
