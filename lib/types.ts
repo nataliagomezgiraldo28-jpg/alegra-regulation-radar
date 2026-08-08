@@ -40,6 +40,11 @@ export interface Change {
   analisis: Analisis;
   estadoCambio?: EstadoCambio;
   simulacion?: boolean;
+  documentoTipo?: string;
+  documentoNumero?: string;
+  documentoNombre?: string;
+  documentoUrl?: string;
+  linkDirecto?: boolean;
 }
 
 export interface Snapshot {
