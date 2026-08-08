@@ -271,12 +271,15 @@
   }
   @media (max-width:560px){
     .brand-sub{display:none}
+    .pill-live{display:none}
+    .brand-name{font-size:15px}
+    .top-actions{gap:8px}
+    .topbar-inner{padding:12px 14px;gap:10px}
     .intro h1{font-size:22px}
     .btn-primary span.lbl{display:none}
     .btn-primary{padding:10px 12px}
     .grid{grid-template-columns:1fr}
     .wrap{padding:18px 14px}
-    .topbar-inner{padding:12px 14px}
     .footnote{padding:0 14px}
     .sidebar{flex-direction:column}
     .gap-row{grid-template-columns:1fr}
