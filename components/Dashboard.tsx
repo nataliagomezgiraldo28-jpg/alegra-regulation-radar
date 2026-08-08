@@ -92,10 +92,10 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
       <div className="topbar">
         <div className="topbar-inner">
           <div className="brand">
-            <div className="brand-dot" />
+            <img src="/logo.svg" alt="Alegra" style={{ height: 28 }} />
             <div>
-              <div className="brand-name">Alegra Regulation Radar</div>
-              <div className="brand-sub">Product Regulation</div>
+              <div className="brand-name">Regulation Radar</div>
+              <div className="brand-sub">Product Regulation · Alegra</div>
             </div>
           </div>
           <div className="top-actions">
