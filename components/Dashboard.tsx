@@ -285,6 +285,11 @@ function ChangeBody({ c, source: s, busy, confirmDel, setConfirmDel, doAction, o
   const est = c.estadoCambio ?? "activo";
   return (
     <div style={{ borderTop: "1px solid var(--line)", padding: "4px 14px 14px" }}>
+      <a href={s.fuenteUrl} target="_blank" rel="noopener" className="btn btn-ghost" style={{ width: "100%", justifyContent: "center", marginTop: 12, marginBottom: 4 }}>
+        📄 Ver documento oficial en {s.entidad.split(" ")[0]} ↗
+      </a>
+      <div className="note" style={{ textAlign: "center", marginBottom: 8 }}>Fuente: {s.fuenteNombre}</div>
+
       <div className="qblock"><h3>① Qué cambió</h3><p>{c.quePaso}</p></div>
 
       {c.antes && c.despues && (
