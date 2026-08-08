@@ -1,17 +1,9 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { SOURCES } from "./sources";
 import { SEED_CHANGES, SEED_NOTIFICATIONS, SEED_OK_DESDE, SEED_SNAPSHOTS } from "./seed";
-import { Change, Estado, Notification, RadarState, Snapshot } from "./types";
+import { Change, Estado, Notification, RadarState, Snapshot, SourceView } from "./types";
 
-// -----------------------------------------------------------------------------
-// STORE — abstracción de datos con degradación elegante.
-//
-//   Si SUPABASE_URL + SUPABASE_SERVICE_KEY existen -> persiste en Supabase.
-//   Si no                                          -> usa el SEED (en memoria).
-//
-// Así el repo se despliega y se ve completo SIN configurar nada, y se vuelve
-// "vivo" (persistente) apenas conectas Supabase.
-// -----------------------------------------------------------------------------
+// STORE — usa Supabase si está configurado; si no, cae al SEED en memoria.
 
 let _sb: SupabaseClient | null = null;
 export function supabase(): SupabaseClient | null {
@@ -22,104 +14,101 @@ export function supabase(): SupabaseClient | null {
   _sb = createClient(url, key, { auth: { persistSession: false } });
   return _sb;
 }
-
 export const modo = (): "seed" | "supabase" => (supabase() ? "supabase" : "seed");
 
-// --- Lectura del estado completo para el dashboard ---------------------------
+let MEM_CHANGES: Change[] | null = null;
+let MEM_NOTIFS: Notification[] | null = null;
+function memChanges(): Change[] { if (!MEM_CHANGES) MEM_CHANGES = SEED_CHANGES.map((c) => ({ ...c })); return MEM_CHANGES; }
+function memNotifs(): Notification[] { if (!MEM_NOTIFS) MEM_NOTIFS = SEED_NOTIFICATIONS.map((n) => ({ ...n })); return MEM_NOTIFS; }
+
 export async function getState(): Promise<RadarState> {
   const sb = supabase();
-  let changes: Change[] = SEED_CHANGES;
-  let notifications: Notification[] = SEED_NOTIFICATIONS;
+  let changes: Change[] = memChanges();
+  let notifications: Notification[] = memNotifs();
+  let snapshots: Snapshot[] = SEED_SNAPSHOTS;
 
   if (sb) {
-    const [{ data: ch }, { data: nt }] = await Promise.all([
+    const [{ data: ch }, { data: nt }, { data: sn }] = await Promise.all([
       sb.from("changes").select("*").order("detectado_en", { ascending: false }),
-      sb.from("notifications").select("*").order("cuando", { ascending: false }),
+      sb.from("notifications").select("*").order("creado_en", { ascending: false }),
+      sb.from("snapshots").select("*"),
     ]);
-    if (ch?.length) changes = ch.map(rowToChange);
-    if (nt?.length) notifications = nt.map(rowToNotif);
+    changes = (ch || []).map(rowToChange);
+    notifications = (nt || []).map(rowToNotif);
+    snapshots = (sn || []).map((r: any) => ({ sourceId: r.source_id, hash: r.hash, texto: r.texto, capturadoEn: r.capturado_en }));
+    // Primera vez: sembramos la BD con los casos reales para que queden en el historial.
+    if (!changes.length) {
+      for (const c of SEED_CHANGES) { try { await sb.from("changes").upsert(changeToRow(c)); } catch {} }
+      for (const n of SEED_NOTIFICATIONS) { try { await sb.from("notifications").upsert(notifToRow(n)); } catch {} }
+      changes = SEED_CHANGES.map((c) => ({ ...c }));
+      notifications = SEED_NOTIFICATIONS.map((n) => ({ ...n }));
+    }
   }
 
-  const changedIds = new Set(changes.filter((c) => !c.atendido).map((c) => c.sourceId));
-  // En modo seed dejamos México "listo para comparar" para que el botón "Revisar
-  // ahora" muestre la detección en vivo en la demo. En Supabase manda la BD.
+  const activo = (c: Change) => (c.estadoCambio ?? "activo") === "activo";
+  const changedIds = new Set(changes.filter(activo).map((c) => c.sourceId));
   const revealSeed = new Set(modo() === "seed" ? ["mx"] : []);
 
-  const sources = SOURCES.map((s) => {
-    const estado: Estado = revealSeed.has(s.id)
-      ? "base"
-      : changedIds.has(s.id)
-      ? "cambio"
-      : "ok";
+  const sources: SourceView[] = SOURCES.map((s) => {
+    const estado: Estado = revealSeed.has(s.id) ? "base" : changedIds.has(s.id) ? "cambio" : "ok";
+    const snap = snapshots.find((x) => x.sourceId === s.id);
     return {
       ...s,
       estado,
       ultimaRevision: "hace un momento",
       okDesde: SEED_OK_DESDE[s.id],
+      textoExtraido: snap?.texto,
+      fuenteCapturadaEn: snap?.capturadoEn,
+      totalHistorial: changes.filter((c) => c.sourceId === s.id).length,
     };
   });
 
-  return {
-    sources,
-    changes,
-    notifications,
-    meta: {
-      ultimaRevision: new Date().toISOString(),
-      proxima: "en ~12 h",
-      modo: modo(),
-    },
-  };
+  return { sources, changes, notifications, meta: { ultimaRevision: new Date().toISOString(), proxima: "en ~12 h", modo: modo() } };
 }
 
-// --- Snapshots ---------------------------------------------------------------
 export async function getSnapshot(sourceId: string): Promise<Snapshot | null> {
   const sb = supabase();
   if (!sb) return SEED_SNAPSHOTS.find((s) => s.sourceId === sourceId) ?? null;
   const { data } = await sb.from("snapshots").select("*").eq("source_id", sourceId).single();
   return data ? { sourceId, hash: data.hash, texto: data.texto, capturadoEn: data.capturado_en } : null;
 }
-
 export async function saveSnapshot(snap: Snapshot) {
   const sb = supabase();
-  if (!sb) return; // en modo seed no persiste (stateless)
-  await sb.from("snapshots").upsert({
-    source_id: snap.sourceId,
-    hash: snap.hash,
-    texto: snap.texto,
-    capturado_en: snap.capturadoEn,
-  });
+  if (!sb) return;
+  await sb.from("snapshots").upsert({ source_id: snap.sourceId, hash: snap.hash, texto: snap.texto, capturado_en: snap.capturadoEn });
 }
-
 export async function saveChange(c: Change) {
   const sb = supabase();
-  if (!sb) return;
+  if (!sb) { const m = memChanges(); const i = m.findIndex((x) => x.id === c.id); if (i >= 0) m[i] = c; else m.unshift(c); return; }
   await sb.from("changes").upsert(changeToRow(c));
 }
-
 export async function saveNotification(n: Notification) {
   const sb = supabase();
-  if (!sb) return;
+  if (!sb) { memNotifs().unshift(n); return; }
   await sb.from("notifications").upsert(notifToRow(n));
 }
+export async function setEstadoCambio(id: string, estado: string) {
+  const sb = supabase();
+  if (!sb) { const c = memChanges().find((x) => x.id === id); if (c) c.estadoCambio = estado as any; return; }
+  await sb.from("changes").update({ estado_cambio: estado }).eq("id", id);
+}
+export async function deleteChange(id: string) {
+  const sb = supabase();
+  if (!sb) { MEM_CHANGES = memChanges().filter((x) => x.id !== id); return; }
+  await sb.from("changes").delete().eq("id", id);
+}
 
-// --- Mapeos fila <-> objeto --------------------------------------------------
 const rowToChange = (r: any): Change => ({
-  id: r.id, sourceId: r.source_id, severidad: r.severidad, titulo: r.titulo,
-  vigencia: r.vigencia, quePaso: r.que_paso, queSignifica: r.que_significa,
-  queHacer: r.que_hacer, productos: r.productos, diff: r.diff,
-  detectadoEn: r.detectado_en, analisis: r.analisis, atendido: r.atendido,
+  id: r.id, sourceId: r.source_id, severidad: r.severidad, titulo: r.titulo, vigencia: r.vigencia,
+  quePaso: r.que_paso, queSignifica: r.que_significa, queHacer: r.que_hacer, productos: r.productos,
+  antes: r.antes, despues: r.despues, diff: r.diff, detectadoEn: r.detectado_en, analisis: r.analisis,
+  estadoCambio: r.estado_cambio ?? "activo", simulacion: r.simulacion ?? false,
 });
 const changeToRow = (c: Change) => ({
-  id: c.id, source_id: c.sourceId, severidad: c.severidad, titulo: c.titulo,
-  vigencia: c.vigencia, que_paso: c.quePaso, que_significa: c.queSignifica,
-  que_hacer: c.queHacer, productos: c.productos, diff: c.diff,
-  detectado_en: c.detectadoEn, analisis: c.analisis, atendido: c.atendido ?? false,
+  id: c.id, source_id: c.sourceId, severidad: c.severidad, titulo: c.titulo, vigencia: c.vigencia,
+  que_paso: c.quePaso, que_significa: c.queSignifica, que_hacer: c.queHacer, productos: c.productos,
+  antes: c.antes, despues: c.despues, diff: c.diff, detectado_en: c.detectadoEn, analisis: c.analisis,
+  estado_cambio: c.estadoCambio ?? "activo", simulacion: c.simulacion ?? false,
 });
-const rowToNotif = (r: any): Notification => ({
-  id: r.id, sourceId: r.source_id, tone: r.tone, titulo: r.titulo,
-  detalle: r.detalle, cuando: r.cuando, leido: r.leido,
-});
-const notifToRow = (n: Notification) => ({
-  id: n.id, source_id: n.sourceId, tone: n.tone, titulo: n.titulo,
-  detalle: n.detalle, cuando: n.cuando, leido: n.leido,
-});
+const rowToNotif = (r: any): Notification => ({ id: r.id, sourceId: r.source_id, tone: r.tone, titulo: r.titulo, detalle: r.detalle, cuando: r.cuando, leido: r.leido });
+const notifToRow = (n: Notification) => ({ id: n.id, source_id: n.sourceId, tone: n.tone, titulo: n.titulo, detalle: n.detalle, cuando: n.cuando, leido: n.leido });
