@@ -1,11 +1,5 @@
 import { Change, Notification, Snapshot } from "./types";
 
-// -----------------------------------------------------------------------------
-// SEED — dos casos REALES, verificables y del último mes (2026).
-// El reto permite trabajar sobre un cambio ya publicado. Estos dos quedan
-// cargados como historial permanente para que SIEMPRE sean tangibles al probar.
-// -----------------------------------------------------------------------------
-
 export const SEED_CHANGES: Change[] = [
   {
     id: "mx-cfdi-comercio-exterior-2026-07-17",
@@ -34,6 +28,11 @@ export const SEED_CHANGES: Change[] = [
     diff:
       "+ Nuevos registros en c_NumPedimentoAduana (pedimentos y patentes aduanales, comercio exterior).\n= Estructura XSD del CFDI 4.0 sin cambios.",
     detectadoEn: "2026-07-17T09:00:00Z",
+    documentoTipo: "Anexo técnico (Catálogos CFDI 4.0)",
+    documentoNumero: "Anexo 20 · Apéndice 4",
+    documentoNombre: "SAT · Anexo 20 — Catálogos del CFDI 4.0 (Apéndice 4 de la Guía de llenado)",
+    documentoUrl: "http://omawww.sat.gob.mx/tramitesyservicios/Paginas/anexo_20.htm",
+    linkDirecto: true,
     analisis: {
       ria: [
         ["Fuente y referencia", "SAT · Anexo 20 (catálogos CFDI 4.0). Actualización del 17 jul 2026. Descarga oficial: omawww.sat.gob.mx/tramitesyservicios/Paginas/anexo_20.htm"],
@@ -87,6 +86,11 @@ export const SEED_CHANGES: Change[] = [
     diff:
       "~ Nuevas validaciones de seguridad en 'Buscar documento'.\n+ Se exige número de identificación del emisor/receptor.\n+ Repetir el número al descargar el documento.",
     detectadoEn: "2026-07-28T10:00:00Z",
+    documentoTipo: "Comunicado oficial",
+    documentoNumero: "Comunicado del 23 jul 2026",
+    documentoNombre: "DIAN · Comunicado — nueva validación en 'Buscar documento' (Sistema de Factura Electrónica)",
+    documentoUrl: "https://micrositios.dian.gov.co/sistema-de-facturacion-electronica/normatividad/",
+    linkDirecto: false,
     analisis: {
       ria: [
         ["Fuente y referencia", "DIAN · Comunicado de prensa del 23 jul 2026 — nuevo mecanismo de validación en 'Buscar documento' del Sistema de Factura Electrónica. Vigente 28 jul 2026."],
@@ -113,7 +117,6 @@ export const SEED_CHANGES: Change[] = [
   },
 ];
 
-// Fechas "sin cambios desde" para las fuentes en monitoreo (verde).
 export const SEED_OK_DESDE: Record<string, string> = {
   cohacienda: "vigilando proyectos de decreto",
   pe: "28 jul 2026",
