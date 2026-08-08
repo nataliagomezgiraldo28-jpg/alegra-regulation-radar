@@ -1,11 +1,9 @@
 import { Change, Notification, Snapshot } from "./types";
 
 // -----------------------------------------------------------------------------
-// SEED — datos reales y verificables para que el radar arranque poblado
-// aunque no se conecte ningún servicio externo el primer minuto.
-//
-// Los dos cambios de abajo son REALES y públicos (fuente oficial citada).
-// El reto permite trabajar sobre un cambio ya publicado: eso es lo que hacemos.
+// SEED — dos casos REALES, verificables y del último mes (2026).
+// El reto permite trabajar sobre un cambio ya publicado. Estos dos quedan
+// cargados como historial permanente para que SIEMPRE sean tangibles al probar.
 // -----------------------------------------------------------------------------
 
 export const SEED_CHANGES: Change[] = [
@@ -13,100 +11,101 @@ export const SEED_CHANGES: Change[] = [
     id: "mx-cfdi-comercio-exterior-2026-07-17",
     sourceId: "mx",
     severidad: "alta",
-    titulo: "El SAT cambió el catálogo de comercio exterior del CFDI 4.0",
+    titulo: "El SAT actualizó los catálogos del CFDI 4.0 (comercio exterior)",
     vigencia: "Vigente desde el 17 jul 2026",
     quePaso:
-      "El SAT publicó una nueva versión de los catálogos del CFDI 4.0 (Anexo 20) con registros nuevos de pedimentos y patentes aduanales. La estructura del archivo (XSD) no cambió: lo que cambió son los valores permitidos.",
+      "El 17 de julio de 2026 el SAT publicó una actualización de los catálogos del CFDI 4.0 (Anexo 20) con nuevos registros de pedimentos y patentes aduanales en el catálogo c_NumPedimentoAduana. Se actualiza el formato Excel; la estructura técnica (XSD) no cambió: cambiaron los valores permitidos.",
     queSignifica:
-      "Los clientes de Alegra en México que facturan operaciones de importación o exportación pueden ver rechazado su timbrado si nuestro catálogo está desactualizado. En la práctica: no podrían emitir su factura.",
+      "Los clientes de Alegra en México que facturan operaciones de importación o exportación pueden ver rechazado su timbrado si el catálogo está desactualizado. Sin el catálogo al día, no pueden emitir su CFDI de comercio exterior.",
     queHacer: [
-      "Actualizar en el motor de timbrado el catálogo de comercio exterior a la versión vigente del 17 jul 2026.",
+      "Actualizar el catálogo c_NumPedimentoAduana del CFDI 4.0 a la versión vigente del 17 jul 2026.",
       "Validar que las nuevas claves de pedimentos y patentes se puedan seleccionar en el flujo de comercio exterior.",
       "Probar un CFDI de comercio exterior en el ambiente de pruebas del PAC antes de liberar.",
     ],
     productos: ["Facturación electrónica", "POS", "API e Integraciones"],
     antes: {
       etiqueta: "Hasta el 16 jul 2026",
-      texto: "Catálogo de comercio exterior del CFDI 4.0 sin los registros nuevos de pedimentos y patentes aduanales.",
+      texto: "Catálogo c_NumPedimentoAduana sin los registros nuevos de pedimentos y patentes aduanales.",
     },
     despues: {
       etiqueta: "Desde el 17 jul 2026",
-      texto: "Catálogo con los nuevos registros de pedimentos y patentes aduanales. La estructura del archivo (XSD) se mantiene igual.",
+      texto: "Catálogo con los nuevos registros de pedimentos y patentes aduanales. Estructura XSD sin cambios.",
     },
     diff:
-      "+ Se agregan registros al catálogo de pedimentos y patentes aduanales (comercio exterior).\n= Estructura XSD sin cambios.",
-    detectadoEn: new Date().toISOString(),
+      "+ Nuevos registros en c_NumPedimentoAduana (pedimentos y patentes aduanales, comercio exterior).\n= Estructura XSD del CFDI 4.0 sin cambios.",
+    detectadoEn: "2026-07-17T09:00:00Z",
     analisis: {
       ria: [
-        ["Cambio", "El SAT actualizó los catálogos del Anexo 20 (CFDI 4.0): nuevos registros en pedimentos y patentes aduanales. Estructura XSD sin cambios."],
-        ["Obligatoriedad", "Vigente desde el 17 de julio de 2026 (aplicación inmediata)."],
-        ["A quién afecta", "Usuarios de Alegra en México que emiten CFDI con operaciones de comercio exterior."],
-        ["Severidad", "Alta — un catálogo desactualizado genera rechazo de timbrado; el usuario no puede facturar."],
-        ["Riesgo si no actuamos", "Facturas rechazadas, incumplimiento del usuario, aumento de tickets y riesgo reputacional."],
+        ["Cambio", "El SAT actualizó los catálogos del Anexo 20 (CFDI 4.0): nuevos registros en c_NumPedimentoAduana (pedimentos y patentes aduanales). Estructura XSD sin cambios."],
+        ["Obligatoriedad", "Vigente y obligatorio desde el 17 de julio de 2026."],
+        ["A quién afecta", "Usuarios de Alegra en México que emiten CFDI con operaciones de importación o exportación."],
+        ["Severidad", "Alta — un catálogo desactualizado genera rechazo de timbrado ante el PAC; el usuario no puede facturar."],
+        ["Riesgo si no actuamos", "Facturas rechazadas, incumplimiento del usuario, aumento de tickets de soporte y riesgo reputacional."],
       ],
       rrd: [
-        ["R1", "El motor de timbrado debe consumir la versión vigente del catálogo (fecha ≥ 2026-07-17)."],
-        ["R2", "Las nuevas claves de pedimentos y patentes aduanales deben quedar disponibles para selección y validación en el flujo de comercio exterior."],
+        ["R1", "El motor de timbrado debe consumir la versión vigente del catálogo c_NumPedimentoAduana (fecha ≥ 2026-07-17)."],
+        ["R2", "Las nuevas claves de pedimentos y patentes deben quedar disponibles para selección y validación en el flujo de comercio exterior."],
         ["R3", "La validación previa debe rechazar claves obsoletas y aceptar las nuevas antes de enviar al PAC."],
-        ["R4", "Automatizar la descarga del catálogo desde la URL oficial del SAT para no depender de carga manual."],
+        ["R4", "Automatizar la descarga del catálogo desde la URL oficial del SAT (Anexo 20) para no depender de carga manual."],
       ],
       rrdAccept:
         "Criterio de aceptación: un CFDI de comercio exterior con las nuevas claves timbra sin error en el ambiente de pruebas del PAC.",
       gap: {
-        actual: "Catálogo cargado en versión anterior al 17-jul-2026 (por confirmar con Ingeniería).",
+        actual: "Catálogo c_NumPedimentoAduana en versión anterior al 17-jul-2026 (por confirmar con Ingeniería).",
         requerido: "Catálogo vigente del 17-jul-2026 con los nuevos registros.",
         brecha: "Faltan los registros nuevos de pedimentos y patentes aduanales en el catálogo del producto.",
-        esfuerzo: "Bajo–medio: actualización de datos + pruebas de timbrado (a validar con el equipo).",
+        esfuerzo: "Bajo–medio: actualización de datos del catálogo + pruebas de timbrado (a validar con el equipo).",
         prioridad: "Alta (ya vigente).",
       },
     },
   },
   {
-    id: "co-dian-res-202-227-2025",
+    id: "co-dian-validacion-consulta-2026-07-28",
     sourceId: "co",
     severidad: "media",
-    titulo: "La DIAN reforzó validaciones y datos obligatorios en facturación electrónica",
-    vigencia: "Res. 000202 y 000227 de 2025",
+    titulo: "La DIAN activó nuevos mecanismos de validación en la consulta de documentos electrónicos",
+    vigencia: "Vigente desde el 28 jul 2026",
     quePaso:
-      "La DIAN, con la Resolución 000202 de 2025, ajustó la regulación de facturación electrónica (base 000165 de 2023): reforzó los mecanismos de validación y los datos obligatorios de los documentos electrónicos. La Resolución 000227 de 2025 consolidó la normativa tributaria aplicable.",
+      "Desde el 28 de julio de 2026, la DIAN incorporó nuevos mecanismos de validación de seguridad en la consulta y descarga de documentos electrónicos ('Buscar documento') del Sistema de Factura Electrónica. Ahora se exige el número de identificación del emisor o receptor, y repetirlo al momento de descargar, para reducir accesos automatizados.",
     queSignifica:
-      "Pueden cambiar reglas de validación y campos obligatorios del documento electrónico en Colombia. Si el producto no se ajusta, ciertos documentos podrían no validar ante la DIAN.",
+      "Las integraciones de Alegra que consultan o descargan documentos desde la plataforma de la DIAN pueden fallar si no se adaptan a los nuevos requisitos de validación. Afecta flujos automatizados de consulta y descarga de documentos electrónicos.",
     queHacer: [
-      "Revisar las reglas de validación y campos obligatorios contra la Res. 000202 de 2025.",
-      "Verificar la interoperabilidad entre factura, documento equivalente y nómina electrónica.",
-      "Confirmar qué reglas ya están cubiertas por el producto y cuáles no.",
+      "Revisar las integraciones que consultan o descargan documentos en el portal de la DIAN.",
+      "Adaptar el flujo para enviar el número de identificación requerido (y repetirlo en la descarga).",
+      "Probar la consulta 'Buscar documento' con los nuevos requisitos antes de la fecha de vigencia.",
     ],
-    productos: ["Facturación electrónica", "Nómina electrónica", "POS"],
+    productos: ["Facturación electrónica", "API e Integraciones", "POS"],
     antes: {
-      etiqueta: "Res. 000165 de 2023",
-      texto: "Reglas de validación y datos obligatorios del documento electrónico según la Resolución 000165 de 2023.",
+      etiqueta: "Hasta el 27 jul 2026",
+      texto: "Consulta y descarga de documentos electrónicos sin validación adicional de identificación.",
     },
     despues: {
-      etiqueta: "Res. 000202 de 2025",
-      texto: "Validaciones reforzadas y datos obligatorios ampliados; normativa consolidada por la Resolución 000227 de 2025.",
+      etiqueta: "Desde el 28 jul 2026",
+      texto: "La consulta exige el número de identificación (emisor/receptor) y repetirlo al descargar; se activan validaciones contra accesos automatizados.",
     },
-    diff: "~ Reglas de validación reforzadas.\n~ Campos obligatorios ampliados en el documento electrónico.",
-    detectadoEn: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString(),
+    diff:
+      "~ Nuevas validaciones de seguridad en 'Buscar documento'.\n+ Se exige número de identificación del emisor/receptor.\n+ Repetir el número al descargar el documento.",
+    detectadoEn: "2026-07-28T10:00:00Z",
     analisis: {
       ria: [
-        ["Cambio", "La Res. 000202/2025 modificó la 000165/2023: refuerzo de validaciones y datos obligatorios. La 000227/2025 consolidó la normativa."],
-        ["A quién afecta", "Usuarios de Alegra en Colombia que emiten factura electrónica y documentos equivalentes."],
-        ["Severidad", "Media — cambios de validación y campos; requiere revisión de reglas del documento electrónico."],
-        ["Riesgo si no actuamos", "Documentos que no validen ante la DIAN y usuarios que no puedan cumplir en fecha."],
+        ["Cambio", "La DIAN activó nuevos mecanismos de validación de seguridad en la consulta/descarga de documentos electrónicos del Sistema de Factura Electrónica, vigentes desde el 28-jul-2026."],
+        ["A quién afecta", "Usuarios e integraciones de Alegra en Colombia que consultan o descargan documentos electrónicos desde la plataforma de la DIAN."],
+        ["Severidad", "Media — afecta flujos automatizados de consulta/descarga; requiere ajuste de integraciones."],
+        ["Riesgo si no actuamos", "Consultas o descargas que fallen desde integraciones, con impacto en procesos que dependen de recuperar documentos ante la DIAN."],
       ],
       rrd: [
-        ["R1", "Ajustar reglas de validación del documento electrónico a lo dispuesto en la Res. 000202/2025."],
-        ["R2", "Actualizar los campos obligatorios reforzados en la generación del documento."],
-        ["R3", "Verificar interoperabilidad entre factura, documento equivalente y nómina."],
+        ["R1", "Adaptar las integraciones de consulta/descarga para enviar el número de identificación del emisor o receptor."],
+        ["R2", "Repetir el número de identificación en el paso de descarga, según el nuevo requisito."],
+        ["R3", "Manejar los mensajes de validación anti-automatización sin romper el flujo del usuario."],
       ],
       rrdAccept:
-        "Criterio de aceptación: los documentos electrónicos validan sin rechazo bajo las reglas de la Res. 000202/2025.",
+        "Criterio de aceptación: la consulta y descarga de documentos desde la integración funciona con los nuevos requisitos, sin errores de validación.",
       gap: {
-        actual: "Reglas de validación previas a la Res. 000202/2025 (por confirmar con Ingeniería).",
-        requerido: "Reglas y campos obligatorios alineados a la Res. 000202 y 000227 de 2025.",
-        brecha: "Diferencias en validaciones y datos obligatorios por mapear regla por regla.",
-        esfuerzo: "Medio: mapeo de reglas + ajustes de validación (a validar con el equipo).",
-        prioridad: "Media–alta.",
+        actual: "Integraciones de consulta/descarga sin el número de identificación requerido (por confirmar con Ingeniería).",
+        requerido: "Flujo de consulta/descarga alineado a las validaciones de la DIAN vigentes desde el 28-jul-2026.",
+        brecha: "Falta enviar (y repetir) el número de identificación y manejar las nuevas validaciones.",
+        esfuerzo: "Medio: ajuste de integraciones + pruebas contra el portal (a validar con el equipo).",
+        prioridad: "Media–alta (ya vigente).",
       },
     },
   },
@@ -114,6 +113,7 @@ export const SEED_CHANGES: Change[] = [
 
 // Fechas "sin cambios desde" para las fuentes en monitoreo (verde).
 export const SEED_OK_DESDE: Record<string, string> = {
+  cohacienda: "vigilando proyectos de decreto",
   pe: "28 jul 2026",
   do: "25 jul 2026",
   cr: "30 jul 2026",
@@ -123,29 +123,25 @@ export const SEED_OK_DESDE: Record<string, string> = {
   es: "31 jul 2026",
 };
 
-// Snapshots base (hash del contenido capturado). En una corrida real, el radar
-// compara el contenido actual de la fuente contra este hash para detectar cambios.
-export const SEED_SNAPSHOTS: Snapshot[] = [
-  { sourceId: "mx", hash: "seed-mx-baseline", texto: "baseline capturado 10 jul 2026", capturadoEn: "2026-07-10T12:00:00Z" },
-];
+export const SEED_SNAPSHOTS: Snapshot[] = [];
 
 export const SEED_NOTIFICATIONS: Notification[] = [
   {
-    id: "n-co",
-    sourceId: "co",
-    tone: "alert",
-    titulo: "Colombia · DIAN",
-    detalle: "Reforzó validaciones y datos obligatorios en facturación electrónica.",
-    cuando: "hace 6 h",
-    leido: false,
-  },
-  {
-    id: "n-mx",
+    id: "n-mx-2026-07-17",
     sourceId: "mx",
     tone: "alert",
     titulo: "México · SAT",
-    detalle: "Cambio detectado en el catálogo de comercio exterior del CFDI 4.0.",
-    cuando: "ahora",
+    detalle: "Actualización de catálogos CFDI 4.0 (comercio exterior), vigente 17 jul 2026.",
+    cuando: "17 jul 2026",
+    leido: false,
+  },
+  {
+    id: "n-co-2026-07-28",
+    sourceId: "co",
+    tone: "alert",
+    titulo: "Colombia · DIAN",
+    detalle: "Nuevas validaciones en la consulta de documentos electrónicos, vigente 28 jul 2026.",
+    cuando: "28 jul 2026",
     leido: false,
   },
 ];
