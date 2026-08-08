@@ -2,17 +2,17 @@ import { Source } from "./types";
 
 // -----------------------------------------------------------------------------
 // REGISTRO DE FUENTES  (el corazón de la escalabilidad)
-//
-// Agregar un país = agregar un objeto aquí. Nada más cambia.
-// Cada fuente apunta SOLO a una entidad oficial y verificable.
+// Agregar un país o una entidad = agregar un objeto aquí. Nada más cambia.
+// Solo fuentes oficiales. URLs apuntan a la página exacta que se vigila.
 //
 // adapter:
-//   "html"      -> el radar descarga la página y compara su contenido (diff real).
-//   "seed-only" -> por ahora se muestra en monitoreo con su snapshot base seedeado.
-//                  (Se "promueve" a "html" cuando se escribe/valida su parser.)
+//   "html"      -> el radar la lee en vivo y detecta cambios (diff real).
+//   "seed-only" -> se muestra en monitoreo (sin lectura en vivo por ahora).
+// capa:
+//   "tecnica"   -> resoluciones, anexos, catálogos (señal accionable).
+//   "temprana"  -> gacetas, proyectos de decreto, congreso (señal anticipada).
 // -----------------------------------------------------------------------------
 
-// Productos reales de Alegra (nombres cortos para etiquetas y ruteo por squad).
 export const PRODUCTOS = [
   "Facturación electrónica",
   "Nómina electrónica",
@@ -30,11 +30,21 @@ export const SOURCES: Source[] = [
     pais: "Colombia",
     bandera: "🇨🇴",
     entidad: "DIAN · Fact. electrónica",
-    fuenteNombre: "DIAN · Documentación técnica",
-    fuenteUrl:
-      "https://www.dian.gov.co/impuestos/factura-electronica/documentacion/Paginas/documentacion-tecnica.aspx",
+    fuenteNombre: "DIAN · Sistema de Factura Electrónica (normatividad)",
+    fuenteUrl: "https://micrositios.dian.gov.co/sistema-de-facturacion-electronica/normatividad/",
     capa: "tecnica",
-    productosPosibles: ["Facturación electrónica", "Nómina electrónica", "POS"],
+    productosPosibles: ["Facturación electrónica", "Nómina electrónica", "POS", "API e Integraciones"],
+    adapter: "html",
+  },
+  {
+    id: "cohacienda",
+    pais: "Colombia",
+    bandera: "🇨🇴",
+    entidad: "MinHacienda · Proyectos de decreto",
+    fuenteNombre: "Ministerio de Hacienda · Proyectos de decreto 2026",
+    fuenteUrl: "https://www.minhacienda.gov.co/normativa/proyectos-de-decretos/2026",
+    capa: "temprana",
+    productosPosibles: ["Facturación electrónica", "Contabilidad", "Nómina electrónica"],
     adapter: "html",
   },
   {
@@ -54,7 +64,7 @@ export const SOURCES: Source[] = [
     bandera: "🇵🇪",
     entidad: "SUNAT · CPE",
     fuenteNombre: "SUNAT · Comprobantes de pago electrónicos",
-    fuenteUrl: "https://www.sunat.gob.pe",
+    fuenteUrl: "https://www.sunat.gob.pe/legislacion/superin/2024/index.html",
     capa: "tecnica",
     productosPosibles: ["Facturación electrónica", "POS"],
     adapter: "seed-only",
@@ -65,7 +75,7 @@ export const SOURCES: Source[] = [
     bandera: "🇩🇴",
     entidad: "DGII · e-CF",
     fuenteNombre: "DGII · Facturación electrónica (e-CF)",
-    fuenteUrl: "https://dgii.gov.do",
+    fuenteUrl: "https://dgii.gov.do/cumplimientoTributario/facturacionElectronica/Paginas/default.aspx",
     capa: "tecnica",
     productosPosibles: ["Facturación electrónica", "Contabilidad"],
     adapter: "seed-only",
@@ -76,7 +86,7 @@ export const SOURCES: Source[] = [
     bandera: "🇨🇷",
     entidad: "Hacienda · FE 4.4",
     fuenteNombre: "Ministerio de Hacienda · Comprobantes electrónicos",
-    fuenteUrl: "https://www.hacienda.go.cr",
+    fuenteUrl: "https://www.hacienda.go.cr/ATV/ComprobanteElectronico/frmInicio.aspx",
     capa: "tecnica",
     productosPosibles: ["Facturación electrónica", "POS"],
     adapter: "seed-only",
@@ -87,7 +97,7 @@ export const SOURCES: Source[] = [
     bandera: "🇵🇦",
     entidad: "DGI · SFEP",
     fuenteNombre: "DGI · Sistema de Facturación Electrónica (SFEP)",
-    fuenteUrl: "https://dgi.mef.gob.pa",
+    fuenteUrl: "https://dgi.mef.gob.pa/FacturaElectronica.php",
     capa: "tecnica",
     productosPosibles: ["Facturación electrónica", "POS"],
     adapter: "seed-only",
@@ -95,36 +105,3 @@ export const SOURCES: Source[] = [
   {
     id: "ve",
     pais: "Venezuela",
-    bandera: "🇻🇪",
-    entidad: "SENIAT · Facturación",
-    fuenteNombre: "SENIAT · Facturación",
-    fuenteUrl: "http://www.seniat.gob.ve",
-    capa: "tecnica",
-    productosPosibles: ["Facturación electrónica", "Contabilidad"],
-    adapter: "seed-only",
-  },
-  {
-    id: "ar",
-    pais: "Argentina",
-    bandera: "🇦🇷",
-    entidad: "ARCA · Comprobantes",
-    fuenteNombre: "ARCA (ex-AFIP) · Comprobantes electrónicos",
-    fuenteUrl: "https://www.arca.gob.ar",
-    capa: "tecnica",
-    productosPosibles: ["Facturación electrónica", "API e Integraciones"],
-    adapter: "seed-only",
-  },
-  {
-    id: "es",
-    pais: "España",
-    bandera: "🇪🇸",
-    entidad: "AEAT · Fact. electrónica",
-    fuenteNombre: "AEAT · Facturación electrónica",
-    fuenteUrl: "https://sede.agenciatributaria.gob.es",
-    capa: "tecnica",
-    productosPosibles: ["Facturación electrónica", "API e Integraciones"],
-    adapter: "seed-only",
-  },
-];
-
-export const sourceById = (id: string) => SOURCES.find((s) => s.id === id);
