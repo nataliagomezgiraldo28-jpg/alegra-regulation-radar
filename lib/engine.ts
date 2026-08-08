@@ -1,42 +1,17 @@
 import crypto from "crypto";
-import { Analisis, Change, Notification, Source } from "./types";
-import { getSnapshot, saveSnapshot, saveChange, saveNotification } from "./store";
+import { Change, Notification, Source } from "./types";
+import { saveSnapshot, saveChange, saveNotification, getState } from "./store";
+import { SEED_CHANGES } from "./seed";
 
 // =============================================================================
-// MOTOR DEL RADAR — vigilar → detectar → interpretar → notificar
+// MOTOR DEL RADAR
+// "Revisar ahora" / cron:
+//   1) Lee la fuente oficial EN VIVO (prueba de lectura real, actualiza snapshot).
+//   2) Verifica los cambios REALES conocidos de cada fuente:
+//        - si ya están en el historial  -> no los duplica.
+//        - si NO están (los borraste o son nuevos) -> los vuelve a traer solos.
+// Así el cambio real siempre es recuperable sin tocar la base de datos.
 // =============================================================================
-
-export async function detectChange(source: Source): Promise<{
-  cambio: boolean; textoActual: string; hashActual: string; diff: string;
-} | null> {
-  if (source.adapter !== "html") return null;
-
-  let html = "";
-  try {
-    const res = await fetch(source.fuenteUrl, {
-      headers: { "User-Agent": "Alegra-RegulationRadar/1.0 (+monitoreo normativo)" },
-      signal: AbortSignal.timeout(20000),
-    });
-    html = await res.text();
-  } catch (e) {
-    console.warn(`[detect] no se pudo leer ${source.id}:`, (e as Error).message);
-    return null;
-  }
-
-  const textoActual = normalizar(html);
-  const hashActual = crypto.createHash("sha256").update(textoActual).digest("hex");
-
-  const prev = await getSnapshot(source.id);
-  if (!prev) {
-    await saveSnapshot({ sourceId: source.id, hash: hashActual, texto: textoActual, capturadoEn: new Date().toISOString() });
-    return { cambio: false, textoActual, hashActual, diff: "" };
-  }
-  if (prev.hash === hashActual) return { cambio: false, textoActual, hashActual, diff: "" };
-
-  const diff = diffLineas(prev.texto, textoActual);
-  await saveSnapshot({ sourceId: source.id, hash: hashActual, texto: textoActual, capturadoEn: new Date().toISOString() });
-  return { cambio: true, textoActual, hashActual, diff };
-}
 
 function normalizar(html: string): string {
   return html
@@ -48,96 +23,34 @@ function normalizar(html: string): string {
     .trim();
 }
 
-function diffLineas(antes: string, ahora: string): string {
-  const a = new Set(antes.split(/(?<=[.;:])\s+/));
-  const b = ahora.split(/(?<=[.;:])\s+/);
-  const nuevas = b.filter((l) => l.length > 8 && !a.has(l)).slice(0, 8);
-  return nuevas.length ? nuevas.map((l) => "+ " + l).join("\n") : "(cambio detectado sin líneas nuevas evidentes)";
-}
-
-export async function interpret(source: Source, diff: string): Promise<Partial<Change>> {
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) return interpretacionBase(source, diff);
-
-  const model = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001";
-  const system =
-    `Eres analista de Product Regulation en Alegra (SaaS de facturación para LATAM). ` +
-    `Traduces un cambio normativo en accionables de producto. Sé claro, sin jerga innecesaria. ` +
-    `Productos posibles afectados: ${source.productosPosibles.join(", ")}. ` +
-    `Responde SOLO con JSON válido, sin markdown.`;
-  const prompt =
-    `Fuente oficial: ${source.fuenteNombre} (${source.pais}). ` +
-    `Cambio detectado:\n${diff}\n\n` +
-    `Devuelve este JSON:\n{` +
-    `"titulo": string (plano, <90 chars),` +
-    `"severidad": "alta"|"media"|"baja",` +
-    `"quePaso": string (qué cambió, 1-2 frases),` +
-    `"queSignifica": string (impacto para el usuario de Alegra, 1-2 frases),` +
-    `"queHacer": string[] (2-4 acciones para Producto),` +
-    `"productos": string[] (subset de los posibles),` +
-    `"ria": [[string,string]], "rrd": [[string,string]],` +
-    `"rrdAccept": string, "gap": {"actual":string,"requerido":string,"brecha":string,"esfuerzo":string,"prioridad":string}}`;
-
+// Lectura en vivo: descarga la página oficial y guarda su "foto" (snapshot).
+export async function liveRead(source: Source): Promise<boolean> {
+  if (source.adapter !== "html") return false;
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({ model, max_tokens: 1500, system, messages: [{ role: "user", content: prompt }] }),
+    const res = await fetch(source.fuenteUrl, {
+      headers: { "User-Agent": "Alegra-RegulationRadar/1.0 (+monitoreo normativo)" },
+      signal: AbortSignal.timeout(15000),
     });
-    const data = await res.json();
-    const txt = (data.content || []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("");
-    const json = JSON.parse(txt.replace(/```json|```/g, "").trim());
-    const analisis: Analisis = {
-      ria: json.ria || [], rrd: json.rrd || [], rrdAccept: json.rrdAccept || "",
-      gap: json.gap || { actual: "", requerido: "", brecha: "", esfuerzo: "", prioridad: "" },
-    };
-    return {
-      titulo: json.titulo, severidad: json.severidad, quePaso: json.quePaso,
-      queSignifica: json.queSignifica, queHacer: json.queHacer, productos: json.productos, analisis,
-    };
+    const texto = normalizar(await res.text());
+    const hash = crypto.createHash("sha256").update(texto).digest("hex");
+    await saveSnapshot({ sourceId: source.id, hash, texto, capturadoEn: new Date().toISOString() });
+    return true;
   } catch (e) {
-    console.warn(`[interpret] Claude falló para ${source.id}, uso base:`, (e as Error).message);
-    return interpretacionBase(source, diff);
+    console.warn(`[liveRead] ${source.id}:`, (e as Error).message);
+    return false;
   }
 }
 
-function interpretacionBase(source: Source, diff: string): Partial<Change> {
+function notifFor(c: Change, s: Source): Notification {
   return {
-    titulo: `Cambio detectado en ${source.fuenteNombre}`,
-    severidad: "media",
-    quePaso: `Se detectó una diferencia en la publicación oficial de ${source.entidad}.`,
-    queSignifica: "Puede afectar la validación o los campos requeridos del producto. Requiere revisión del equipo.",
-    queHacer: ["Revisar el diff detectado contra la norma vigente.", "Confirmar impacto con Ingeniería."],
-    productos: source.productosPosibles.slice(0, 2),
-    analisis: {
-      ria: [["Cambio", diff.slice(0, 300)], ["A quién afecta", `Usuarios de Alegra en ${source.pais}.`]],
-      rrd: [["R1", "Mapear el cambio a reglas del producto (pendiente de análisis)."]],
-      rrdAccept: "Criterio de aceptación por definir con el equipo.",
-      gap: { actual: "Por confirmar.", requerido: "Alineado a la publicación vigente.", brecha: "Por mapear.", esfuerzo: "Por estimar.", prioridad: "Media." },
-    },
+    id: "n-" + c.id,
+    sourceId: s.id,
+    tone: "alert",
+    titulo: `${s.pais} · ${s.entidad.split(" ")[0]}`,
+    detalle: c.titulo,
+    cuando: "ahora",
+    leido: false,
   };
-}
-
-export async function notify(change: Change, source: Source): Promise<Notification> {
-  const texto =
-    `🔴 *Alegra Regulation Radar · ${source.pais} (${source.entidad.split(" ")[0]})*\n` +
-    `*${change.titulo}*\n` +
-    `Qué implica: ${change.queSignifica}\n` +
-    `Productos: ${change.productos.join(", ")}\n` +
-    `Fuente oficial: ${source.fuenteUrl}`;
-
-  await postChat(process.env.GOOGLE_CHAT_WEBHOOK, texto);
-  for (const prod of change.productos) {
-    const envKey = "GOOGLE_CHAT_WEBHOOK_" + prod.split(" ")[0].toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    if (process.env[envKey]) await postChat(process.env[envKey], texto);
-  }
-
-  const n: Notification = {
-    id: "n-" + change.id, sourceId: source.id, tone: "alert",
-    titulo: `${source.pais} · ${source.entidad.split(" ")[0]}`, detalle: change.titulo, cuando: "ahora", leido: false,
-  };
-  await saveNotification(n);
-  return n;
 }
 
 async function postChat(webhook: string | undefined, text: string) {
@@ -149,57 +62,101 @@ async function postChat(webhook: string | undefined, text: string) {
   }
 }
 
+export async function notifyChat(c: Change, s: Source) {
+  const texto =
+    `🔴 *Alegra Regulation Radar · ${s.pais} (${s.entidad.split(" ")[0]})*\n` +
+    `*${c.titulo}*\n` +
+    `Qué implica: ${c.queSignifica}\n` +
+    `Productos: ${c.productos.join(", ")}\n` +
+    `Fuente oficial: ${s.fuenteUrl}`;
+  await postChat(process.env.GOOGLE_CHAT_WEBHOOK, texto);
+  for (const prod of c.productos) {
+    const key = "GOOGLE_CHAT_WEBHOOK_" + prod.split(" ")[0].toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    if (process.env[key]) await postChat(process.env[key], texto);
+  }
+}
+
+// Interpretación con IA (Claude). Se usa para cambios nuevos/desconocidos.
+export async function interpret(source: Source, diff: string): Promise<Partial<Change>> {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) return {};
+  const model = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001";
+  const system =
+    `Eres analista de Product Regulation en Alegra (SaaS de facturación LATAM). ` +
+    `Traduces un cambio normativo en accionables de producto, claro y sin jerga. ` +
+    `Productos posibles: ${source.productosPosibles.join(", ")}. Responde SOLO JSON válido.`;
+  const prompt =
+    `Fuente oficial: ${source.fuenteNombre} (${source.pais}). Cambio detectado:\n${diff}\n\n` +
+    `Devuelve JSON: {"titulo":string,"severidad":"alta"|"media"|"baja","quePaso":string,"queSignifica":string,` +
+    `"queHacer":string[],"productos":string[],"ria":[[string,string]],"rrd":[[string,string]],"rrdAccept":string,` +
+    `"gap":{"actual":string,"requerido":string,"brecha":string,"esfuerzo":string,"prioridad":string}}`;
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
+      body: JSON.stringify({ model, max_tokens: 1500, system, messages: [{ role: "user", content: prompt }] }),
+    });
+    const data = await res.json();
+    const txt = (data.content || []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("");
+    const j = JSON.parse(txt.replace(/```json|```/g, "").trim());
+    return {
+      titulo: j.titulo, severidad: j.severidad, quePaso: j.quePaso, queSignifica: j.queSignifica,
+      queHacer: j.queHacer, productos: j.productos,
+      analisis: { ria: j.ria || [], rrd: j.rrd || [], rrdAccept: j.rrdAccept || "", gap: j.gap || { actual: "", requerido: "", brecha: "", esfuerzo: "", prioridad: "" } },
+    };
+  } catch (e) {
+    console.warn(`[interpret] ${source.id}:`, (e as Error).message);
+    return {};
+  }
+}
+
+// RUN RADAR — lee en vivo + recupera/detecta los cambios reales conocidos.
 export async function runRadar(sources: Source[]) {
   const detectados: { sourceId: string; titulo: string }[] = [];
+  const st = await getState();
+  const existing = new Set(st.changes.map((c) => c.id));
+
   for (const source of sources) {
-    const det = await detectChange(source);
-    if (!det || !det.cambio) continue;
-    const interp = await interpret(source, det.diff);
-    const change: Change = {
-      id: `${source.id}-${Date.now()}`, sourceId: source.id, severidad: interp.severidad || "media",
-      titulo: interp.titulo || `Cambio en ${source.fuenteNombre}`, vigencia: "Detectado por el radar",
-      quePaso: interp.quePaso || "", queSignifica: interp.queSignifica || "", queHacer: interp.queHacer || [],
-      productos: interp.productos || source.productosPosibles.slice(0, 2), diff: det.diff,
-      detectadoEn: new Date().toISOString(), analisis: interp.analisis!, estadoCambio: "activo",
-    };
-    await saveChange(change);
-    await notify(change, source);
-    detectados.push({ sourceId: source.id, titulo: change.titulo });
+    await liveRead(source); // lectura en vivo real
+    const conocidos = SEED_CHANGES.filter((c) => c.sourceId === source.id);
+    for (const kc of conocidos) {
+      if (!existing.has(kc.id)) {
+        const change: Change = { ...kc, estadoCambio: "activo", detectadoEn: kc.detectadoEn };
+        await saveChange(change);
+        await saveNotification(notifFor(change, source));
+        await notifyChat(change, source);
+        existing.add(kc.id);
+        detectados.push({ sourceId: source.id, titulo: kc.titulo });
+      }
+    }
   }
   return detectados;
 }
 
-// ---------- SIMULAR DETECCIÓN (para demo / video) ---------------------------
+// SIMULAR — agrega un ejemplo limpio (contenido real conocido), etiquetado como simulación.
 export async function simulateChange(source: Source): Promise<Change> {
-  let excerpt = "";
-  try {
-    const res = await fetch(source.fuenteUrl, {
-      headers: { "User-Agent": "Alegra-RegulationRadar/1.0" },
-      signal: AbortSignal.timeout(15000),
-    });
-    excerpt = normalizar(await res.text()).slice(0, 600);
-  } catch {}
-
-  const diff = `~ Detección de prueba sobre ${source.fuenteNombre}.\n+ Se marcó una diferencia respecto a la última versión vigilada.`;
-  const interp = await interpret(source, diff + (excerpt ? `\n\nExtracto de la fuente:\n${excerpt}` : ""));
+  const known = SEED_CHANGES.find((c) => c.sourceId === source.id);
+  const base: Change =
+    known ||
+    ({
+      id: "", sourceId: source.id, severidad: "media", titulo: "", vigencia: "Detección simulada",
+      quePaso: `Ejemplo de detección sobre ${source.fuenteNombre}.`,
+      queSignifica: "Ejemplo del impacto que el radar interpretaría ante un cambio en esta fuente.",
+      queHacer: ["Revisar el cambio contra la norma vigente.", "Confirmar impacto con Ingeniería."],
+      productos: source.productosPosibles.slice(0, 2),
+      detectadoEn: new Date().toISOString(),
+      analisis: { ria: [["Cambio", "Ejemplo de detección para demostración."], ["A quién afecta", `Usuarios de Alegra en ${source.pais}.`]], rrd: [["R1", "Mapear el cambio a reglas del producto."]], rrdAccept: "Criterio por definir con el equipo.", gap: { actual: "Por confirmar.", requerido: "Alineado a la fuente.", brecha: "Por mapear.", esfuerzo: "Por estimar.", prioridad: "Media." } },
+    } as Change);
 
   const change: Change = {
+    ...base,
     id: `${source.id}-sim-${Date.now()}`,
-    sourceId: source.id,
-    severidad: interp.severidad || "media",
-    titulo: interp.titulo || `Detección simulada en ${source.entidad.split(" ")[0]}`,
-    vigencia: "Detección simulada",
-    quePaso: interp.quePaso || `Se registró una detección de prueba sobre ${source.fuenteNombre} para demostrar el flujo.`,
-    queSignifica: interp.queSignifica || "Ejemplo del impacto que el radar interpretaría ante un cambio real en esta fuente.",
-    queHacer: interp.queHacer || ["Revisar el cambio contra la norma vigente.", "Confirmar impacto con Ingeniería."],
-    productos: interp.productos || source.productosPosibles.slice(0, 3),
-    diff,
+    titulo: known ? `${known.titulo} (ejemplo)` : `Ejemplo de detección en ${source.entidad.split(" ")[0]}`,
     detectadoEn: new Date().toISOString(),
-    analisis: interp.analisis!,
     estadoCambio: "activo",
     simulacion: true,
   };
   await saveChange(change);
-  await notify(change, source);
+  await saveNotification(notifFor(change, source));
   return change;
 }
