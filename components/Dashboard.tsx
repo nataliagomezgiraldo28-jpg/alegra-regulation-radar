@@ -55,8 +55,8 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
       if (data.state) applyState(data.state);
       setLastCheck("hace unos segundos");
       const n = data.detectados?.length || 0;
-      if (n > 0) toast(`${n} cambio${n === 1 ? "" : "s"} nuevo${n === 1 ? "" : "s"} detectado${n === 1 ? "" : "s"}`, "🔴");
-      else toast("Radar actualizado. Sin cambios nuevos.", "✓", "ok");
+      if (n > 0) toast(`Leí las fuentes en vivo · ${n} cambio${n === 1 ? "" : "s"} recuperado${n === 1 ? "" : "s"}`, "🔴");
+      else toast("Leí las fuentes oficiales en vivo. Todo al día.", "✓", "ok");
     } catch { toast("No se pudo completar la revisión.", "⚠️"); }
     setScanning(false);
   }
@@ -77,10 +77,8 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setOpenCountry(null); setNotifOpen(false); } };
-    const onClick = () => setNotifOpen(false);
     document.addEventListener("keydown", onKey);
-    document.addEventListener("click", onClick);
-    return () => { document.removeEventListener("keydown", onKey); document.removeEventListener("click", onClick); };
+    return () => { document.removeEventListener("keydown", onKey); };
   }, []);
 
   const oc = openCountry ? sources.find((s) => s.id === openCountry) : null;
@@ -183,10 +181,11 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
       </div>
 
       <p className="footnote">
-        <b>Fuentes oficiales.</b> El radar solo se conecta a entidades oficiales (SAT, DIAN, SUNAT, DGII, Hacienda, DGI, SENIAT, ARCA, AEAT). Corre automático por Vercel Cron; «Revisar ahora» es opcional. Casos reales verificables: SAT (México · CFDI 4.0, 17-jul-2026) y DIAN (Colombia · Res. 000202 y 000227 de 2025).
+        <b>Fuentes oficiales.</b> El radar solo se conecta a entidades oficiales (SAT, DIAN, SUNAT, DGII, Hacienda, DGI, SENIAT, ARCA, AEAT). Corre automático por Vercel Cron; «Revisar ahora» es opcional. Casos reales verificables: SAT (México · CFDI 4.0, 17-jul-2026) y DIAN (Colombia · Buscar documento, 28-jul-2026).
       </p>
 
-      <div className={"notif" + (notifOpen ? " open" : "")} onClick={(e) => e.stopPropagation()}>
+      {notifOpen && <div onClick={() => setNotifOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />}
+      <div className={"notif" + (notifOpen ? " open" : "")} style={{ zIndex: 50 }} onClick={(e) => e.stopPropagation()}>
         <div className="notif-head">Notificaciones <button onClick={() => setNotifs((n) => n.map((x) => ({ ...x, leido: true })))}>Marcar todo leído</button></div>
         <div className="notif-list">
           {notifs.length === 0 ? (
@@ -200,6 +199,7 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
         </div>
       </div>
 
+      {/* Panel país + historial */}
       <div className={"scrim" + (openCountry ? " open" : "")} onClick={() => setOpenCountry(null)} />
       <aside className={"panel" + (openCountry ? " open" : "")} aria-hidden={!openCountry}>
         {oc && (
@@ -213,6 +213,7 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
               <button className="panel-close" aria-label="Cerrar" onClick={() => setOpenCountry(null)}>✕</button>
             </div>
             <div className="panel-body">
+              {/* Letrero guía */}
               <div style={{ background: "var(--bg)", border: "1px dashed #bfeee4", borderRadius: 12, padding: "11px 13px", fontSize: 12.5, color: "var(--muted)", lineHeight: 1.5, marginBottom: 14 }}>
                 📜 Este es el <b>historial de {oc.pais}</b>. Cada tarjeta es una actualización detectada. Haz clic en una para ver el detalle, el <b>Antes → Después</b>, el documento técnico y para <b>gestionarla</b>.
               </div>
@@ -224,16 +225,7 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
                 <a className="btn btn-ghost" href={oc.fuenteUrl} target="_blank" rel="noopener">Abrir fuente oficial ↗</a>
               </div>
 
-              {oc.textoExtraido && (
-                <details className="acc" style={{ marginBottom: 14 }}>
-                  <summary><span>Información extraída de la fuente</span><span className="lbl">EN VIVO</span><span className="chev">▾</span></summary>
-                  <div className="acc-body">
-                    <div className="note" style={{ marginTop: 6 }}>Esto es lo que el radar leyó de la página oficial {oc.fuenteCapturadaEn ? `(${fmtFecha(oc.fuenteCapturadaEn)})` : ""}:</div>
-                    <pre style={{ marginTop: 8, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11.5, lineHeight: 1.5, background: "#0B2B26", color: "#CFF7ED", padding: "11px 13px", borderRadius: 10, whiteSpace: "pre-wrap", maxHeight: 160, overflowY: "auto" }}>{oc.textoExtraido.slice(0, 700)}</pre>
-                  </div>
-                </details>
-              )}
-
+              {/* Timeline */}
               {changesOf(oc.id).length === 0 ? (
                 <div className="qblock"><h3>◇ Sin cambios registrados</h3><p>El radar está vigilando {oc.fuenteNombre}. Cuando detecte un cambio, aparecerá aquí. Puedes usar «Simular detección» para ver cómo se vería.</p></div>
               ) : (
@@ -285,10 +277,19 @@ function ChangeBody({ c, source: s, busy, confirmDel, setConfirmDel, doAction, o
   const est = c.estadoCambio ?? "activo";
   return (
     <div style={{ borderTop: "1px solid var(--line)", padding: "4px 14px 14px" }}>
-      <a href={s.fuenteUrl} target="_blank" rel="noopener" className="btn btn-ghost" style={{ width: "100%", justifyContent: "center", marginTop: 12, marginBottom: 4 }}>
-        📄 Ver documento oficial en {s.entidad.split(" ")[0]} ↗
-      </a>
-      <div className="note" style={{ textAlign: "center", marginBottom: 8 }}>Fuente: {s.fuenteNombre}</div>
+      <div style={{ background: "var(--ok-bg)", border: "1px solid #bfeee4", borderRadius: 12, padding: "12px 14px", marginTop: 12, marginBottom: 12 }}>
+        <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--action-dark)", marginBottom: 6 }}>📄 Documento oficial</div>
+        {c.documentoNombre && <div style={{ fontWeight: 700, fontSize: 13.5, lineHeight: 1.4, marginBottom: 3 }}>{c.documentoNombre}</div>}
+        <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 9 }}>
+          {[c.documentoTipo, c.documentoNumero].filter(Boolean).join(" · ")}{c.vigencia ? ` · ${c.vigencia}` : ""}
+        </div>
+        <a href={c.documentoUrl || s.fuenteUrl} target="_blank" rel="noopener" className="btn btn-primary" style={{ width: "100%", justifyContent: "center" }}>
+          Abrir documento oficial en {s.entidad.split(" ")[0]} ↗
+        </a>
+        {c.linkDirecto === false && (
+          <div className="note" style={{ marginTop: 7 }}>Enlace directo al documento no disponible; abre la página oficial de la {s.entidad.split(" ")[0]} donde se localiza. Referencia: {c.documentoNumero || "comunicado oficial"}.</div>
+        )}
+      </div>
 
       <div className="qblock"><h3>① Qué cambió</h3><p>{c.quePaso}</p></div>
 
@@ -337,6 +338,7 @@ function ChangeBody({ c, source: s, busy, confirmDel, setConfirmDel, doAction, o
         </div>
       </details>
 
+      {/* Acciones */}
       <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--line)" }}>
         <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--faint)", marginBottom: 8 }}>¿Qué quieres hacer con este cambio?</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
