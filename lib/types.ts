@@ -1,55 +1,45 @@
-// Tipos compartidos del Radar Regulatorio.
+// Tipos compartidos del Alegra Regulation Radar.
 
 export type Estado = "ok" | "base" | "cambio";
 export type Severidad = "alta" | "media" | "baja";
+export type EstadoCambio = "activo" | "atendido" | "archivado";
 
-// Una fuente = un país + su entidad oficial + cómo se vigila.
 export interface Source {
-  id: string;                 // "co", "mx", ...
+  id: string;
   pais: string;
-  bandera: string;            // emoji
-  entidad: string;            // "DIAN · Fact. electrónica"
-  fuenteNombre: string;       // nombre largo de la fuente oficial
-  fuenteUrl: string;          // URL oficial que se vigila
-  capa: "tecnica" | "temprana"; // técnica = anexo/catálogo; temprana = gaceta/congreso
-  // Productos de Alegra que esta fuente puede impactar (para ruteo por squad).
+  bandera: string;
+  entidad: string;
+  fuenteNombre: string;
+  fuenteUrl: string;
+  capa: "tecnica" | "temprana";
   productosPosibles: string[];
-  // Adaptador de detección: cómo extraer el contenido comparable de la fuente.
   adapter: "html" | "seed-only";
 }
 
-// Un "documento técnico" generado a partir del cambio (Parte 2 del reto).
 export interface Analisis {
-  ria: [string, string][];    // [etiqueta, contenido]
-  rrd: [string, string][];    // [id requerimiento, texto]
+  ria: [string, string][];
+  rrd: [string, string][];
   rrdAccept: string;
-  gap: {
-    actual: string;
-    requerido: string;
-    brecha: string;
-    esfuerzo: string;
-    prioridad: string;
-  };
+  gap: { actual: string; requerido: string; brecha: string; esfuerzo: string; prioridad: string };
 }
 
-// Un cambio detectado en una fuente.
 export interface Change {
   id: string;
   sourceId: string;
   severidad: Severidad;
   titulo: string;
   vigencia: string;
-  quePaso: string;             // qué cambió (plano)
-  queSignifica: string;        // impacto para el usuario (plano)
-  queHacer: string[];          // acciones para Producto
-  productos: string[];         // productos afectados (subset de productosPosibles)
-  // Antes/Después: la evidencia de "qué estaba y qué cambió" que pide el reto.
+  quePaso: string;
+  queSignifica: string;
+  queHacer: string[];
+  productos: string[];
   antes?: { etiqueta: string; texto: string };
   despues?: { etiqueta: string; texto: string };
-  diff?: string;               // extracto del diff detectado
-  detectadoEn: string;         // ISO date
-  analisis: Analisis;          // RIA / RRD / Gap
-  atendido?: boolean;
+  diff?: string;
+  detectadoEn: string;
+  analisis: Analisis;
+  estadoCambio?: EstadoCambio;
+  simulacion?: boolean;
 }
 
 export interface Snapshot {
@@ -69,9 +59,17 @@ export interface Notification {
   leido: boolean;
 }
 
-// Estado que consume el dashboard.
+export interface SourceView extends Source {
+  estado: Estado;
+  ultimaRevision: string;
+  okDesde?: string;
+  textoExtraido?: string;
+  fuenteCapturadaEn?: string;
+  totalHistorial: number;
+}
+
 export interface RadarState {
-  sources: (Source & { estado: Estado; ultimaRevision: string; okDesde?: string })[];
+  sources: SourceView[];
   changes: Change[];
   notifications: Notification[];
   meta: { ultimaRevision: string; proxima: string; modo: "seed" | "supabase" };
