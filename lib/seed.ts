@@ -25,6 +25,14 @@ export const SEED_CHANGES: Change[] = [
       "Probar un CFDI de comercio exterior en el ambiente de pruebas del PAC antes de liberar.",
     ],
     productos: ["Facturación electrónica", "POS", "API e Integraciones"],
+    antes: {
+      etiqueta: "Hasta el 16 jul 2026",
+      texto: "Catálogo de comercio exterior del CFDI 4.0 sin los registros nuevos de pedimentos y patentes aduanales.",
+    },
+    despues: {
+      etiqueta: "Desde el 17 jul 2026",
+      texto: "Catálogo con los nuevos registros de pedimentos y patentes aduanales. La estructura del archivo (XSD) se mantiene igual.",
+    },
     diff:
       "+ Se agregan registros al catálogo de pedimentos y patentes aduanales (comercio exterior).\n= Estructura XSD sin cambios.",
     detectadoEn: new Date().toISOString(),
@@ -64,72 +72,4 @@ export const SEED_CHANGES: Change[] = [
     queSignifica:
       "Pueden cambiar reglas de validación y campos obligatorios del documento electrónico en Colombia. Si el producto no se ajusta, ciertos documentos podrían no validar ante la DIAN.",
     queHacer: [
-      "Revisar las reglas de validación y campos obligatorios contra la Res. 000202 de 2025.",
-      "Verificar la interoperabilidad entre factura, documento equivalente y nómina electrónica.",
-      "Confirmar qué reglas ya están cubiertas por el producto y cuáles no.",
-    ],
-    productos: ["Facturación electrónica", "Nómina electrónica", "POS"],
-    diff: "~ Reglas de validación reforzadas.\n~ Campos obligatorios ampliados en el documento electrónico.",
-    detectadoEn: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString(),
-    analisis: {
-      ria: [
-        ["Cambio", "La Res. 000202/2025 modificó la 000165/2023: refuerzo de validaciones y datos obligatorios. La 000227/2025 consolidó la normativa."],
-        ["A quién afecta", "Usuarios de Alegra en Colombia que emiten factura electrónica y documentos equivalentes."],
-        ["Severidad", "Media — cambios de validación y campos; requiere revisión de reglas del documento electrónico."],
-        ["Riesgo si no actuamos", "Documentos que no validen ante la DIAN y usuarios que no puedan cumplir en fecha."],
-      ],
-      rrd: [
-        ["R1", "Ajustar reglas de validación del documento electrónico a lo dispuesto en la Res. 000202/2025."],
-        ["R2", "Actualizar los campos obligatorios reforzados en la generación del documento."],
-        ["R3", "Verificar interoperabilidad entre factura, documento equivalente y nómina."],
-      ],
-      rrdAccept:
-        "Criterio de aceptación: los documentos electrónicos validan sin rechazo bajo las reglas de la Res. 000202/2025.",
-      gap: {
-        actual: "Reglas de validación previas a la Res. 000202/2025 (por confirmar con Ingeniería).",
-        requerido: "Reglas y campos obligatorios alineados a la Res. 000202 y 000227 de 2025.",
-        brecha: "Diferencias en validaciones y datos obligatorios por mapear regla por regla.",
-        esfuerzo: "Medio: mapeo de reglas + ajustes de validación (a validar con el equipo).",
-        prioridad: "Media–alta.",
-      },
-    },
-  },
-];
-
-// Fechas "sin cambios desde" para las fuentes en monitoreo (verde).
-export const SEED_OK_DESDE: Record<string, string> = {
-  pe: "28 jul 2026",
-  do: "25 jul 2026",
-  cr: "30 jul 2026",
-  pa: "24 jul 2026",
-  ve: "21 jul 2026",
-  ar: "29 jul 2026",
-  es: "31 jul 2026",
-};
-
-// Snapshots base (hash del contenido capturado). En una corrida real, el radar
-// compara el contenido actual de la fuente contra este hash para detectar cambios.
-export const SEED_SNAPSHOTS: Snapshot[] = [
-  { sourceId: "mx", hash: "seed-mx-baseline", texto: "baseline capturado 10 jul 2026", capturadoEn: "2026-07-10T12:00:00Z" },
-];
-
-export const SEED_NOTIFICATIONS: Notification[] = [
-  {
-    id: "n-co",
-    sourceId: "co",
-    tone: "alert",
-    titulo: "Colombia · DIAN",
-    detalle: "Reforzó validaciones y datos obligatorios en facturación electrónica.",
-    cuando: "hace 6 h",
-    leido: false,
-  },
-  {
-    id: "n-mx",
-    sourceId: "mx",
-    tone: "alert",
-    titulo: "México · SAT",
-    detalle: "Cambio detectado en el catálogo de comercio exterior del CFDI 4.0.",
-    cuando: "ahora",
-    leido: false,
-  },
-];
+      "Revisar las reglas de validación y campos obligatorios
