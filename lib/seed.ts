@@ -14,7 +14,7 @@ export const SEED_CHANGES: Change[] = [
     titulo: "El SAT actualizó los catálogos del CFDI 4.0 (comercio exterior)",
     vigencia: "Vigente desde el 17 jul 2026",
     quePaso:
-      "El 17 de julio de 2026 el SAT publicó una actualización de los catálogos del CFDI 4.0 (Anexo 20) con nuevos registros de pedimentos y patentes aduanales en el catálogo c_NumPedimentoAduana. Se actualiza el formato Excel; la estructura técnica (XSD) no cambió: cambiaron los valores permitidos.",
+      "El 17 de julio de 2026 el SAT publicó una actualización de los catálogos del CFDI 4.0 (Anexo 20) con nuevos registros de pedimentos y patentes aduanales en el catálogo c_NumPedimentoAduana. Se actualiza el formato Excel; la estructura técnica (XSD) no cambió: cambiaron los valores permitidos. Referencia oficial: SAT · Anexo 20 (catálogos del CFDI 4.0), actualización publicada el 17 de julio de 2026.",
     queSignifica:
       "Los clientes de Alegra en México que facturan operaciones de importación o exportación pueden ver rechazado su timbrado si el catálogo está desactualizado. Sin el catálogo al día, no pueden emitir su CFDI de comercio exterior.",
     queHacer: [
@@ -36,6 +36,7 @@ export const SEED_CHANGES: Change[] = [
     detectadoEn: "2026-07-17T09:00:00Z",
     analisis: {
       ria: [
+        ["Fuente y referencia", "SAT · Anexo 20 (catálogos CFDI 4.0). Actualización del 17 jul 2026. Descarga oficial: omawww.sat.gob.mx/tramitesyservicios/Paginas/anexo_20.htm"],
         ["Cambio", "El SAT actualizó los catálogos del Anexo 20 (CFDI 4.0): nuevos registros en c_NumPedimentoAduana (pedimentos y patentes aduanales). Estructura XSD sin cambios."],
         ["Obligatoriedad", "Vigente y obligatorio desde el 17 de julio de 2026."],
         ["A quién afecta", "Usuarios de Alegra en México que emiten CFDI con operaciones de importación o exportación."],
@@ -66,7 +67,7 @@ export const SEED_CHANGES: Change[] = [
     titulo: "La DIAN activó nuevos mecanismos de validación en la consulta de documentos electrónicos",
     vigencia: "Vigente desde el 28 jul 2026",
     quePaso:
-      "Desde el 28 de julio de 2026, la DIAN incorporó nuevos mecanismos de validación de seguridad en la consulta y descarga de documentos electrónicos ('Buscar documento') del Sistema de Factura Electrónica. Ahora se exige el número de identificación del emisor o receptor, y repetirlo al momento de descargar, para reducir accesos automatizados.",
+      "Desde el 28 de julio de 2026, la DIAN incorporó nuevos mecanismos de validación de seguridad en la consulta y descarga de documentos electrónicos ('Buscar documento') del Sistema de Factura Electrónica. Ahora se exige el número de identificación del emisor o receptor, y repetirlo al momento de descargar, para reducir accesos automatizados. Referencia oficial: DIAN · Comunicado de prensa del 23 de julio de 2026 sobre la opción 'Buscar documento' del Sistema de Factura Electrónica; vigente desde el 28 de julio de 2026.",
     queSignifica:
       "Las integraciones de Alegra que consultan o descargan documentos desde la plataforma de la DIAN pueden fallar si no se adaptan a los nuevos requisitos de validación. Afecta flujos automatizados de consulta y descarga de documentos electrónicos.",
     queHacer: [
@@ -88,6 +89,7 @@ export const SEED_CHANGES: Change[] = [
     detectadoEn: "2026-07-28T10:00:00Z",
     analisis: {
       ria: [
+        ["Fuente y referencia", "DIAN · Comunicado de prensa del 23 jul 2026 — nuevo mecanismo de validación en 'Buscar documento' del Sistema de Factura Electrónica. Vigente 28 jul 2026."],
         ["Cambio", "La DIAN activó nuevos mecanismos de validación de seguridad en la consulta/descarga de documentos electrónicos del Sistema de Factura Electrónica, vigentes desde el 28-jul-2026."],
         ["A quién afecta", "Usuarios e integraciones de Alegra en Colombia que consultan o descargan documentos electrónicos desde la plataforma de la DIAN."],
         ["Severidad", "Media — afecta flujos automatizados de consulta/descarga; requiere ajuste de integraciones."],
