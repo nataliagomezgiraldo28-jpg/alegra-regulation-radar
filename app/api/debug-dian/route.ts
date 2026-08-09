@@ -1,16 +1,11 @@
 import { NextResponse } from "next/server";
-import { parseNormas } from "@/lib/engine";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// Diagnóstico: prueba varias páginas de la DIAN con Firecrawl y muestra
-// cuántas normas parsea cada una y los años, para elegir la mejor fuente.
-// Abrir en el navegador: /api/debug-dian
 const URLS = [
-  { nombre: "micrositio-normatividad", url: "https://micrositios.dian.gov.co/sistema-de-facturacion-electronica/normatividad/" },
-  { nombre: "portal-normativa", url: "https://www.dian.gov.co/impuestos/factura-electronica/documentacion/Paginas/normativa.aspx" },
-  { nombre: "normograma", url: "https://normograma.dian.gov.co/dian/" },
+  { n: "novedades-boletines", url: "https://normograma.dian.gov.co/dian/compilacion/novedades_boletines.html" },
+  { n: "novedades-tributario", url: "https://normograma.dian.gov.co/dian/compilacion/nyb_novedades_derecho_tributario.html" },
 ];
 
 async function probar(key: string, url: string) {
@@ -19,22 +14,18 @@ async function probar(key: string, url: string) {
       method: "POST",
       headers: { "content-type": "application/json", Authorization: "Bearer " + key },
       body: JSON.stringify({ url, formats: ["markdown"] }),
-      signal: AbortSignal.timeout(40000),
+      signal: AbortSignal.timeout(45000),
     });
     const data: any = await res.json();
     const md: string = data?.data?.markdown || data?.markdown || "";
-    const normas = parseNormas(md);
-    const anios = Array.from(new Set(normas.map((n) => n.anio))).sort((a, b) => b - a);
+    const links = (md.match(/\[[^\]]+\]\([^\)]+\)/g) || []).slice(0, 15);
     return {
       httpStatus: res.status,
       markdownLength: md.length,
-      normasCount: normas.length,
-      aniosEncontrados: anios,
-      primeras3: normas.slice(0, 3).map((n) => n.titulo),
-      // buscamos señales de 2025-2026 en el texto crudo aunque el parser no las capture
-      menciona2025: /\b2025\b/.test(md),
       menciona2026: /\b2026\b/.test(md),
-      menciona000202o000227: /000202|000227/.test(md),
+      menciona2025: /\b2025\b/.test(md),
+      primerosLinks: links,
+      muestra: md.slice(0, 1200),
     };
   } catch (e) {
     return { error: (e as Error).message };
@@ -44,9 +35,7 @@ async function probar(key: string, url: string) {
 export async function GET() {
   const key = process.env.FIRECRAWL_API_KEY;
   if (!key) return NextResponse.json({ error: "No hay FIRECRAWL_API_KEY" });
-  const resultados: any = {};
-  for (const u of URLS) {
-    resultados[u.nombre] = { url: u.url, ...(await probar(key, u.url)) };
-  }
-  return NextResponse.json(resultados);
+  const out: any = {};
+  for (const u of URLS) out[u.n] = { url: u.url, ...(await probar(key, u.url)) };
+  return NextResponse.json(out);
 }
