@@ -12,17 +12,7 @@ export const PRODUCTOS = [
 ] as const;
 
 export const SOURCES: Source[] = [
-  {
-    id: "co",
-    pais: "Colombia",
-    bandera: "🇨🇴",
-    entidad: "DIAN · Fact. electrónica",
-    fuenteNombre: "DIAN · Sistema de Factura Electrónica (normatividad)",
-    fuenteUrl: "https://micrositios.dian.gov.co/sistema-de-facturacion-electronica/normatividad/",
-    capa: "tecnica",
-    productosPosibles: ["Facturación electrónica", "Nómina electrónica", "POS", "API e Integraciones"],
-    adapter: "html",
-  },
+  
   {
     id: "co-dian-live",
     pais: "Colombia",
