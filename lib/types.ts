@@ -13,7 +13,7 @@ export interface Source {
   fuenteUrl: string;
   capa: "tecnica" | "temprana";
   productosPosibles: string[];
-  adapter: "html" | "seed-only";
+  adapter: "html" | "seed-only" | "firecrawl";
 }
 
 export interface Analisis {
