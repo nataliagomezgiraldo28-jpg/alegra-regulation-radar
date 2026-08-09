@@ -31,7 +31,9 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
   const changesOf = (sid: string) => changes.filter((c) => c.sourceId === sid).sort((a, b) => (a.detectadoEn < b.detectadoEn ? 1 : -1));
   const activeOf = (sid: string) => changesOf(sid).find(activo);
 
-  const shownSources = sources.filter((s) => (view === "temprana" ? s.capa === "temprana" : s.capa !== "temprana"));
+  // En "temprana" mostramos TODOS los países; los que no tienen señal real van "por implementar" (gris).
+  const shownSources = view === "temprana" ? sources.slice() : sources.filter((s) => s.capa !== "temprana");
+  const esPorImplementar = (s: SourceView) => view === "temprana" && s.capa !== "temprana";
   const activeCountry: SourceView | null = shownSources.find((s) => s.id === selected) || shownSources[0] || null;
 
   let cAlert = 0, cOk = 0;
@@ -140,6 +142,12 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
           </button>
         </div>
 
+        <div className="view-desc">
+          {view === "vigente"
+            ? "🔴 Cambios normativos ya publicados y obligatorios por las entidades oficiales. Requieren acción de Producto."
+            : "🌊 Proyectos de decreto, propuestas y normativa en discusión que aún no es obligación. Se vigilan para anticiparse."}
+        </div>
+
         <div className="statusline">
           <span>Última revisión <b>{lastCheck}</b></span><span className="sep" />
           <span><b>{sources.length}</b> fuentes activas</span><span className="sep" />
@@ -167,17 +175,17 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
           <aside className="country-list">
             <div className="cl-head">Países ({shownSources.length})</div>
             {shownSources.map((s) => {
-              const isAlert = s.estado === "cambio";
+              const porImpl = esPorImplementar(s);
+              const isAlert = !porImpl && s.estado === "cambio";
               const hist = changesOf(s.id).length;
               return (
-                <button key={s.id} className={"country-row" + (activeCountry?.id === s.id ? " active" : "")} onClick={() => { setSelected(s.id); setExpandedId(activeOf(s.id)?.id || null); }}>
+                <button key={s.id} className={"country-row" + (activeCountry?.id === s.id ? " active" : "") + (porImpl ? " muted" : "")} onClick={() => { setSelected(s.id); setExpandedId(activeOf(s.id)?.id || null); }}>
                   <span className="cr-flag">{s.bandera}</span>
                   <span className="cr-txt">
                     <span className="cr-country">{s.pais}</span>
-                    <span className="cr-entity">{s.entidad}</span>
+                    <span className="cr-entity">{porImpl ? "Por implementar" : s.entidad}</span>
                   </span>
-                  <span className={"cr-dot " + (isAlert ? "alert" : "ok")} title={isAlert ? "Algo cambió" : "En orden"} />
-                  {hist > 0 && <span className="cr-count">{hist}</span>}
+                  {porImpl ? <span className="cr-soon">pronto</span> : <><span className={"cr-dot " + (isAlert ? "alert" : "ok")} title={isAlert ? "Algo cambió" : "En orden"} />{hist > 0 && <span className="cr-count">{hist}</span>}</>}
                 </button>
               );
             })}
@@ -186,6 +194,24 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
           <section className="detail-pane">
             {!activeCountry ? (
               <div className="qblock"><h3>◇ Sin fuentes en esta vista</h3><p>No hay fuentes configuradas en esta categoría por ahora.</p></div>
+            ) : esPorImplementar(activeCountry) ? (
+              <>
+                <div className="detail-head">
+                  <span className="flag" style={{ fontSize: 26, opacity: 0.6 }}>{activeCountry.bandera}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 800, fontSize: 16 }}>{activeCountry.pais}</div>
+                    <div style={{ fontSize: 12, color: "var(--muted)", fontWeight: 600 }}>Señales tempranas · {activeCountry.entidad}</div>
+                  </div>
+                  <span className="state" style={{ background: "var(--bg)", color: "var(--faint)" }}><span className="dot" style={{ background: "var(--faint)" }} />Por implementar</span>
+                </div>
+                <div style={{ background: "var(--bg)", border: "1px dashed var(--line)", borderRadius: 14, padding: "26px 22px", textAlign: "center", marginTop: 16 }}>
+                  <div style={{ fontSize: 32, marginBottom: 10, opacity: 0.5 }}>🌊</div>
+                  <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 6 }}>Monitoreo de señales tempranas por implementar</div>
+                  <p style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.55, maxWidth: 440, margin: "0 auto" }}>
+                    Aquí vigilaremos los <b>proyectos de decreto y propuestas normativas</b> de {activeCountry.pais} <b>antes</b> de que sean obligación, para que Alegra se anticipe. Esta capa está en el roadmap: se activará conectando las fuentes de anticipación (diarios oficiales, proyectos en consulta) de cada país.
+                  </p>
+                </div>
+              </>
             ) : (
               <>
                 <div className="detail-head">
@@ -241,7 +267,7 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
       </div>
 
       <p className="footnote">
-        <b>Fuentes oficiales.</b> El radar solo se conecta a entidades oficiales (SAT, DIAN, MinHacienda, SUNAT, DGII, Hacienda, DGI, SENIAT, ARCA, AEAT). Corre automático por Vercel Cron; «Revisar ahora» es opcional. La DIAN se lee en vivo (vía Firecrawl) y la IA filtra lo relevante para Alegra.
+        <b>Fuentes oficiales.</b> El radar solo se conecta a entidades oficiales (SAT, DIAN, MinHacienda, SUNAT, DGII, Hacienda, DGI, SENIAT, ARCA, AEAT). Lee las fuentes en vivo y corre automático por Vercel Cron; «Revisar ahora» es opcional. Casos reales verificables: SAT (México · CFDI 4.0) y DIAN (Colombia · Buscar documento).
       </p>
 
       {notifOpen && <div onClick={() => setNotifOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />}
