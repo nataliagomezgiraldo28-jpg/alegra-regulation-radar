@@ -16,7 +16,7 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
   const [changes, setChanges] = useState<Change[]>(initial.changes);
   const [notifs, setNotifs] = useState<Notification[]>(initial.notifications);
   const [view, setView] = useState<"vigente" | "temprana">("vigente");
-  const [openCountry, setOpenCountry] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [notifOpen, setNotifOpen] = useState(false);
   const [healthOpen, setHealthOpen] = useState(false);
@@ -32,6 +32,8 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
   const activeOf = (sid: string) => changesOf(sid).find(activo);
 
   const shownSources = sources.filter((s) => (view === "temprana" ? s.capa === "temprana" : s.capa !== "temprana"));
+  const activeCountry: SourceView | null = shownSources.find((s) => s.id === selected) || shownSources[0] || null;
+
   let cAlert = 0, cOk = 0;
   shownSources.forEach((s) => (s.estado === "cambio" ? cAlert++ : cOk++));
   const vigenteCount = sources.filter((s) => s.capa !== "temprana").length;
@@ -56,7 +58,7 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
       if (data.state) applyState(data.state);
       setLastCheck("hace unos segundos");
       const n = data.detectados?.length || 0;
-      if (n > 0) toast(`Leí las fuentes en vivo · ${n} cambio${n === 1 ? "" : "s"} recuperado${n === 1 ? "" : "s"}`, "🔴");
+      if (n > 0) toast(`Leí las fuentes en vivo · ${n} cambio${n === 1 ? "" : "s"} detectado${n === 1 ? "" : "s"}`, "🔴");
       else toast("Leí las fuentes oficiales en vivo. Todo al día.", "✓", "ok");
     } catch { toast("No se pudo completar la revisión.", "⚠️"); }
     setScanning(false);
@@ -77,12 +79,10 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
   }
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setOpenCountry(null); setNotifOpen(false); } };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setNotifOpen(false); };
     document.addEventListener("keydown", onKey);
     return () => { document.removeEventListener("keydown", onKey); };
   }, []);
-
-  const oc = openCountry ? sources.find((s) => s.id === openCountry) : null;
 
   return (
     <>
@@ -115,99 +115,133 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
       <div className="wrap">
         <div className="intro">
           <h1>El radar de tu equipo</h1>
-          <p>Vigilamos a las entidades fiscales de cada país donde opera Alegra y te avisamos apenas la norma cambia. Sin que tengas que revisar una por una.</p>
+          <p>Vigilamos a las entidades fiscales de cada país donde opera Alegra y te avisamos apenas la norma cambia. Elige un país a la izquierda para ver sus cambios.</p>
         </div>
 
         {onboarding && (
           <div className="onboard">
             <span style={{ fontSize: 20, lineHeight: 1 }}>👋</span>
             <div style={{ flex: 1, fontSize: 13.5, lineHeight: 1.5, color: "var(--ink)" }}>
-              <b>Bienvenida.</b> A la izquierda eliges qué mirar: <b>Vigente / Por implementar</b> (cambios ya obligatorios) o <b>En el radar / Señales tempranas</b> (proyectos que aún no son ley). Cada tarjeta es un país: <b style={{ color: "var(--ok)" }}>verde</b> = en orden, <b style={{ color: "var(--alert)" }}>rojo</b> = algo cambió. Haz clic en un país para ver su historial y gestionarlo.
+              <b>Bienvenida.</b> Arriba eliges la capa: <b>Vigente / Por implementar</b> (ya obligatorio) o <b>En el radar / Señales tempranas</b> (aún no es ley). En la lista de la izquierda eliges el <b>país</b>, y a la derecha ves sus cambios: haz clic en uno para ver el detalle, el documento oficial y gestionarlo.
             </div>
             <button onClick={() => setOnboarding(false)} style={{ border: "1px solid var(--line)", background: "#fff", borderRadius: 8, padding: "4px 10px", fontWeight: 700, fontSize: 12, color: "var(--muted)" }}>Entendido</button>
           </div>
         )}
 
-        <div className="layout">
-          <aside className="sidebar">
-            <button className={"viewbtn" + (view === "vigente" ? " active" : "")} onClick={() => setView("vigente")}>
-              <span className="vb-icon">🔴</span>
-              <span><span className="vb-title">Vigente / Por implementar</span><span className="vb-sub">Cambios ya obligatorios · {vigenteCount} fuentes</span></span>
-            </button>
-            <button className={"viewbtn" + (view === "temprana" ? " active" : "")} onClick={() => setView("temprana")}>
-              <span className="vb-icon">🌊</span>
-              <span><span className="vb-title">En el radar / Señales tempranas</span><span className="vb-sub">Proyectos y propuestas · {tempranaCount} fuentes</span></span>
-            </button>
-            <div className="side-note">
-              {view === "vigente"
-                ? "Cambios ya publicados por las entidades oficiales. Requieren acción de Producto."
-                : "Proyectos de decreto y propuestas que aún no son obligación. Se vigilan para anticiparse."}
-            </div>
+        {/* Tabs de capa */}
+        <div className="viewtabs">
+          <button className={"viewtab" + (view === "vigente" ? " active" : "")} onClick={() => { setView("vigente"); setSelected(null); setExpandedId(null); }}>
+            <span className="vt-icon">🔴</span>
+            <span className="vt-txt"><b>Vigente / Por implementar</b><span>Cambios ya obligatorios · {vigenteCount}</span></span>
+          </button>
+          <button className={"viewtab" + (view === "temprana" ? " active" : "")} onClick={() => { setView("temprana"); setSelected(null); setExpandedId(null); }}>
+            <span className="vt-icon">🌊</span>
+            <span className="vt-txt"><b>En el radar / Señales tempranas</b><span>Proyectos y propuestas · {tempranaCount}</span></span>
+          </button>
+        </div>
+
+        <div className="statusline">
+          <span>Última revisión <b>{lastCheck}</b></span><span className="sep" />
+          <span><b>{sources.length}</b> fuentes activas</span><span className="sep" />
+          <span className="mono" style={{ color: "var(--faint)" }}>modo: {initial.meta.modo === "supabase" ? "en vivo" : "demo"}</span>
+          <span className="sep" />
+          <span className="chip alert" style={{ padding: "3px 10px" }}><span className="sw" />{cAlert} con cambios</span>
+          <span className="chip ok" style={{ padding: "3px 10px" }}><span className="sw" />{cOk} en orden</span>
+          <button className="link-btn" onClick={() => setHealthOpen((v) => !v)}>{healthOpen ? "Ocultar estado de fuentes" : "Ver estado de fuentes"}</button>
+        </div>
+
+        {healthOpen && (
+          <div className="health open">
+            {shownSources.map((s) => (
+              <div className="health-item" key={s.id}>
+                <span className="h-dot" />
+                <span className="h-src">{s.bandera} {s.fuenteNombre}</span>
+                <span className="h-meta mono">revisada {s.ultimaRevision} · OK</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Navegación: lista de países (izq) + detalle (der) */}
+        <div className="nav-layout">
+          <aside className="country-list">
+            <div className="cl-head">Países ({shownSources.length})</div>
+            {shownSources.map((s) => {
+              const isAlert = s.estado === "cambio";
+              const hist = changesOf(s.id).length;
+              return (
+                <button key={s.id} className={"country-row" + (activeCountry?.id === s.id ? " active" : "")} onClick={() => { setSelected(s.id); setExpandedId(activeOf(s.id)?.id || null); }}>
+                  <span className="cr-flag">{s.bandera}</span>
+                  <span className="cr-txt">
+                    <span className="cr-country">{s.pais}</span>
+                    <span className="cr-entity">{s.entidad}</span>
+                  </span>
+                  <span className={"cr-dot " + (isAlert ? "alert" : "ok")} title={isAlert ? "Algo cambió" : "En orden"} />
+                  {hist > 0 && <span className="cr-count">{hist}</span>}
+                </button>
+              );
+            })}
           </aside>
 
-          <div className="main">
-            <div className="statusline">
-              <span>Última revisión <b>{lastCheck}</b></span><span className="sep" />
-              <span>Próxima <b>{initial.meta.proxima}</b></span><span className="sep" />
-              <span><b>{sources.length}</b> fuentes activas</span>
-              <span className="sep" />
-              <span className="mono" style={{ color: "var(--faint)" }}>modo: {initial.meta.modo === "supabase" ? "en vivo" : "demo"}</span>
-              <button className="link-btn" onClick={() => setHealthOpen((v) => !v)}>{healthOpen ? "Ocultar estado de fuentes" : "Ver estado de fuentes"}</button>
-            </div>
-
-            {healthOpen && (
-              <div className="health open">
-                {shownSources.map((s) => (
-                  <div className="health-item" key={s.id}>
-                    <span className="h-dot" />
-                    <span className="h-src">{s.bandera} {s.fuenteNombre}</span>
-                    <span className="h-meta mono">revisada {s.ultimaRevision} · OK</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="chips">
-              <div className="chip alert"><span className="sw" /><span className="n">{cAlert}</span> {cAlert === 1 ? "país con cambios" : "países con cambios"}</div>
-              <div className="chip ok"><span className="sw" /><span className="n">{cOk}</span> en orden</div>
-            </div>
-
-            <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 12, fontWeight: 600 }}>👆 Haz clic en un país para ver su historial y gestionar los cambios.</div>
-
-            {shownSources.length === 0 ? (
+          <section className="detail-pane">
+            {!activeCountry ? (
               <div className="qblock"><h3>◇ Sin fuentes en esta vista</h3><p>No hay fuentes configuradas en esta categoría por ahora.</p></div>
             ) : (
-              <div className="grid">
-                {shownSources.map((s) => {
-                  const c = activeOf(s.id);
-                  const isAlert = s.estado === "cambio";
-                  const headline = c ? c.titulo : `Todo en orden. Sin cambios desde el ${s.okDesde || "la última revisión"}.`;
-                  return (
-                    <div className={"card " + (isAlert ? "is-alert" : "is-ok")} key={s.id} onClick={() => { setOpenCountry(s.id); setExpandedId(activeOf(s.id)?.id || null); }} style={{ cursor: "pointer" }}>
-                      <div className="card-accent" />
-                      <div className="card-top">
-                        <span className="flag">{s.bandera}</span>
-                        <div><div className="card-country">{s.pais}</div><div className="card-entity">{s.entidad}</div></div>
-                        <span className={"state " + (isAlert ? "alert" : "ok")}><span className="dot" />{isAlert ? "Algo cambió" : "Todo en orden"}</span>
-                      </div>
-                      <div className="card-headline">{headline}</div>
-                      {c && <div className="ptags">{c.productos.map((p) => <span className="ptag" key={p}>{p}</span>)}</div>}
-                      <div className="card-meta">
-                        <span className="mono">◔ {s.ultimaRevision}</span>
-                        {s.totalHistorial > 0 && <span className="mono" style={{ color: "var(--action-dark)", fontWeight: 700 }}>· {s.totalHistorial} en historial</span>}
-                      </div>
-                      <button className={"btn card-btn " + (isAlert ? "btn-primary" : "btn-ghost")}>Ver país e historial →</button>
-                    </div>
-                  );
-                })}
-              </div>
+              <>
+                <div className="detail-head">
+                  <span className="flag" style={{ fontSize: 26 }}>{activeCountry.bandera}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 800, fontSize: 16 }}>{activeCountry.pais}</div>
+                    <div style={{ fontSize: 12, color: "var(--muted)", fontWeight: 600 }}>{activeCountry.fuenteNombre}</div>
+                  </div>
+                  <span className={"state " + (activeCountry.estado === "cambio" ? "alert" : "ok")}><span className="dot" />{activeCountry.estado === "cambio" ? "Algo cambió" : "Todo en orden"}</span>
+                </div>
+
+                <div style={{ display: "flex", gap: 8, margin: "12px 0 16px", flexWrap: "wrap" }}>
+                  <button className="btn btn-primary" disabled={busy} onClick={() => doAction("simular", { sourceId: activeCountry.id })} title="Crea una detección de ejemplo">
+                    {busy ? "Simulando…" : "＋ Simular detección"}<span style={{ fontSize: 10, fontWeight: 800, background: "rgba(0,0,0,.12)", borderRadius: 5, padding: "1px 5px", marginLeft: 4 }}>DEMO</span>
+                  </button>
+                  <a className="btn btn-ghost" href={activeCountry.fuenteUrl} target="_blank" rel="noopener">Abrir fuente oficial ↗</a>
+                </div>
+
+                {changesOf(activeCountry.id).length === 0 ? (
+                  <div className="qblock"><h3>◇ Sin cambios registrados</h3><p>El radar está vigilando {activeCountry.fuenteNombre}. Cuando detecte un cambio, aparecerá aquí. Puedes usar «Simular detección» para ver cómo se vería.</p></div>
+                ) : (
+                  <div style={{ position: "relative", paddingLeft: 22 }}>
+                    <div style={{ position: "absolute", left: 6, top: 6, bottom: 6, width: 2, background: "var(--line)" }} />
+                    {changesOf(activeCountry.id).map((c) => {
+                      const est = c.estadoCambio ?? "activo";
+                      const dotColor = est === "atendido" ? "var(--ok)" : est === "archivado" ? "var(--faint)" : "var(--alert)";
+                      const open = expandedId === c.id;
+                      return (
+                        <div key={c.id} style={{ position: "relative", marginBottom: 14, opacity: est === "archivado" ? 0.7 : 1 }}>
+                          <div style={{ position: "absolute", left: -22, top: 5, width: 12, height: 12, borderRadius: "50%", background: dotColor, border: "2px solid #fff", boxShadow: "0 0 0 2px var(--line)" }} />
+                          <div style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 12, overflow: "hidden" }}>
+                            <div onClick={() => setExpandedId(open ? null : c.id)} style={{ padding: "12px 14px", cursor: "pointer" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 5 }}>
+                                <span className="mono" style={{ fontSize: 11, color: "var(--faint)" }}>{fmtFecha(c.detectadoEn)}</span>
+                                <span style={{ fontSize: 10.5, fontWeight: 800, padding: "2px 8px", borderRadius: 999, color: dotColor, background: est === "atendido" ? "var(--ok-bg)" : est === "archivado" ? "var(--bg)" : "var(--alert-bg)" }}>{estadoLabel[est]}</span>
+                                {c.simulacion && <span style={{ fontSize: 10, fontWeight: 800, color: "var(--muted)", background: "var(--bg)", border: "1px solid var(--line)", borderRadius: 5, padding: "1px 6px" }}>simulación</span>}
+                                <span style={{ marginLeft: "auto", color: "var(--faint)", transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }}>▾</span>
+                              </div>
+                              <div style={{ fontWeight: 700, fontSize: 14, lineHeight: 1.35 }}>{c.titulo}</div>
+                              <div className="ptags" style={{ marginTop: 7 }}>{c.productos.map((p) => <span className="ptag" key={p}>{p}</span>)}</div>
+                            </div>
+                            {open && <ChangeBody c={c} source={activeCountry} busy={busy} confirmDel={confirmDel} setConfirmDel={setConfirmDel} doAction={doAction} />}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
             )}
-          </div>
+          </section>
         </div>
       </div>
 
       <p className="footnote">
-        <b>Fuentes oficiales.</b> El radar solo se conecta a entidades oficiales (SAT, DIAN, MinHacienda, SUNAT, DGII, Hacienda, DGI, SENIAT, ARCA, AEAT). Corre automático por Vercel Cron; «Revisar ahora» es opcional. Casos reales verificables: SAT (México · CFDI 4.0, 17-jul-2026) y DIAN (Colombia · Buscar documento, 28-jul-2026).
+        <b>Fuentes oficiales.</b> El radar solo se conecta a entidades oficiales (SAT, DIAN, MinHacienda, SUNAT, DGII, Hacienda, DGI, SENIAT, ARCA, AEAT). Corre automático por Vercel Cron; «Revisar ahora» es opcional. La DIAN se lee en vivo (vía Firecrawl) y la IA filtra lo relevante para Alegra.
       </p>
 
       {notifOpen && <div onClick={() => setNotifOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />}
@@ -217,73 +251,13 @@ export default function Dashboard({ initial }: { initial: RadarState }) {
           {notifs.length === 0 ? (
             <div className="notif-empty">Sin novedades. Todo tranquilo por aquí.</div>
           ) : notifs.map((n) => (
-            <div className="notif-item" key={n.id} onClick={() => { setNotifOpen(false); setOpenCountry(n.sourceId); }}>
+            <div className="notif-item" key={n.id} onClick={() => { setNotifOpen(false); const s = sources.find((x) => x.id === n.sourceId); if (s) { setView(s.capa === "temprana" ? "temprana" : "vigente"); setSelected(n.sourceId); } }}>
               <span className={"notif-dot " + n.tone} />
               <div><div className="t">{n.titulo}</div><div className="d">{n.detalle}</div><div className="ago mono">{n.cuando}</div></div>
             </div>
           ))}
         </div>
       </div>
-
-      {/* Panel país + historial */}
-      <div className={"scrim" + (openCountry ? " open" : "")} onClick={() => setOpenCountry(null)} />
-      <aside className={"panel" + (openCountry ? " open" : "")} aria-hidden={!openCountry}>
-        {oc && (
-          <>
-            <div className="panel-head">
-              <span className="flag">{oc.bandera}</span>
-              <div>
-                <div style={{ fontWeight: 800, fontSize: 15 }}>{oc.pais}</div>
-                <div style={{ fontSize: 12, color: "var(--faint)", fontWeight: 600 }}>{oc.fuenteNombre}</div>
-              </div>
-              <button className="panel-close" aria-label="Cerrar" onClick={() => setOpenCountry(null)}>✕</button>
-            </div>
-            <div className="panel-body">
-              <div style={{ background: "var(--bg)", border: "1px dashed #bfeee4", borderRadius: 12, padding: "11px 13px", fontSize: 12.5, color: "var(--muted)", lineHeight: 1.5, marginBottom: 14 }}>
-                📜 Este es el <b>historial de {oc.pais}</b>. Cada tarjeta es una actualización detectada. Haz clic en una para ver el detalle, el <b>Antes → Después</b>, el documento oficial y para <b>gestionarla</b>.
-              </div>
-
-              <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
-                <button className="btn btn-primary" disabled={busy} onClick={() => doAction("simular", { sourceId: oc.id })} title="Crea una detección de ejemplo para demostrar el flujo completo">
-                  {busy ? "Simulando…" : "＋ Simular detección"}<span style={{ fontSize: 10, fontWeight: 800, background: "rgba(0,0,0,.12)", borderRadius: 5, padding: "1px 5px", marginLeft: 4 }}>DEMO</span>
-                </button>
-                <a className="btn btn-ghost" href={oc.fuenteUrl} target="_blank" rel="noopener">Abrir fuente oficial ↗</a>
-              </div>
-
-              {changesOf(oc.id).length === 0 ? (
-                <div className="qblock"><h3>◇ Sin cambios registrados</h3><p>El radar está vigilando {oc.fuenteNombre}. Cuando detecte un cambio, aparecerá aquí. Puedes usar «Simular detección» para ver cómo se vería.</p></div>
-              ) : (
-                <div style={{ position: "relative", paddingLeft: 22 }}>
-                  <div style={{ position: "absolute", left: 6, top: 6, bottom: 6, width: 2, background: "var(--line)" }} />
-                  {changesOf(oc.id).map((c) => {
-                    const est = c.estadoCambio ?? "activo";
-                    const dotColor = est === "atendido" ? "var(--ok)" : est === "archivado" ? "var(--faint)" : "var(--alert)";
-                    const open = expandedId === c.id;
-                    return (
-                      <div key={c.id} style={{ position: "relative", marginBottom: 14, opacity: est === "archivado" ? 0.7 : 1 }}>
-                        <div style={{ position: "absolute", left: -22, top: 5, width: 12, height: 12, borderRadius: "50%", background: dotColor, border: "2px solid #fff", boxShadow: "0 0 0 2px var(--line)" }} />
-                        <div style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 12, overflow: "hidden" }}>
-                          <div onClick={() => setExpandedId(open ? null : c.id)} style={{ padding: "12px 14px", cursor: "pointer" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 5 }}>
-                              <span className="mono" style={{ fontSize: 11, color: "var(--faint)" }}>{fmtFecha(c.detectadoEn)}</span>
-                              <span style={{ fontSize: 10.5, fontWeight: 800, padding: "2px 8px", borderRadius: 999, color: dotColor, background: est === "atendido" ? "var(--ok-bg)" : est === "archivado" ? "var(--bg)" : "var(--alert-bg)" }}>{estadoLabel[est]}</span>
-                              {c.simulacion && <span style={{ fontSize: 10, fontWeight: 800, color: "var(--muted)", background: "var(--bg)", border: "1px solid var(--line)", borderRadius: 5, padding: "1px 6px" }}>simulación</span>}
-                              <span style={{ marginLeft: "auto", color: "var(--faint)", transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }}>▾</span>
-                            </div>
-                            <div style={{ fontWeight: 700, fontSize: 14, lineHeight: 1.35 }}>{c.titulo}</div>
-                            <div className="ptags" style={{ marginTop: 7 }}>{c.productos.map((p) => <span className="ptag" key={p}>{p}</span>)}</div>
-                          </div>
-                          {open && <ChangeBody c={c} source={oc} busy={busy} confirmDel={confirmDel} setConfirmDel={setConfirmDel} doAction={doAction} />}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </>
-        )}
-      </aside>
 
       <div className="toast-wrap">
         {toasts.map((t) => (
