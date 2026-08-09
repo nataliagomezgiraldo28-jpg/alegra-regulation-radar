@@ -1,5 +1,12 @@
 import { Change, Notification, Snapshot } from "./types";
 
+// -----------------------------------------------------------------------------
+// SEED — caso REAL, verificable y del último mes (2026).
+// El reto permite trabajar sobre un cambio ya publicado. Queda cargado como
+// historial permanente para que SIEMPRE sea tangible al probar.
+// La DIAN ahora se lee EN VIVO (vía Firecrawl), no desde este seed.
+// -----------------------------------------------------------------------------
+
 export const SEED_CHANGES: Change[] = [
   {
     id: "mx-cfdi-comercio-exterior-2026-07-17",
@@ -59,64 +66,9 @@ export const SEED_CHANGES: Change[] = [
       },
     },
   },
-  {
-    id: "co-dian-validacion-consulta-2026-07-28",
-    sourceId: "co",
-    severidad: "media",
-    titulo: "La DIAN activó nuevos mecanismos de validación en la consulta de documentos electrónicos",
-    vigencia: "Vigente desde el 28 jul 2026",
-    quePaso:
-      "Desde el 28 de julio de 2026, la DIAN incorporó nuevos mecanismos de validación de seguridad en la consulta y descarga de documentos electrónicos ('Buscar documento') del Sistema de Factura Electrónica. Ahora se exige el número de identificación del emisor o receptor, y repetirlo al momento de descargar, para reducir accesos automatizados. Referencia oficial: DIAN · Comunicado de prensa del 23 de julio de 2026 sobre la opción 'Buscar documento' del Sistema de Factura Electrónica; vigente desde el 28 de julio de 2026.",
-    queSignifica:
-      "Las integraciones de Alegra que consultan o descargan documentos desde la plataforma de la DIAN pueden fallar si no se adaptan a los nuevos requisitos de validación. Afecta flujos automatizados de consulta y descarga de documentos electrónicos.",
-    queHacer: [
-      "Revisar las integraciones que consultan o descargan documentos en el portal de la DIAN.",
-      "Adaptar el flujo para enviar el número de identificación requerido (y repetirlo en la descarga).",
-      "Probar la consulta 'Buscar documento' con los nuevos requisitos antes de la fecha de vigencia.",
-    ],
-    productos: ["Facturación electrónica", "API e Integraciones", "POS"],
-    antes: {
-      etiqueta: "Hasta el 27 jul 2026",
-      texto: "Consulta y descarga de documentos electrónicos sin validación adicional de identificación.",
-    },
-    despues: {
-      etiqueta: "Desde el 28 jul 2026",
-      texto: "La consulta exige el número de identificación (emisor/receptor) y repetirlo al descargar; se activan validaciones contra accesos automatizados.",
-    },
-    diff:
-      "~ Nuevas validaciones de seguridad en 'Buscar documento'.\n+ Se exige número de identificación del emisor/receptor.\n+ Repetir el número al descargar el documento.",
-    detectadoEn: "2026-07-28T10:00:00Z",
-    documentoTipo: "Comunicado oficial",
-    documentoNumero: "Comunicado del 23 jul 2026",
-    documentoNombre: "DIAN · Comunicado — nueva validación en 'Buscar documento' (Sistema de Factura Electrónica)",
-    documentoUrl: "https://micrositios.dian.gov.co/sistema-de-facturacion-electronica/normatividad/",
-    linkDirecto: false,
-    analisis: {
-      ria: [
-        ["Fuente y referencia", "DIAN · Comunicado de prensa del 23 jul 2026 — nuevo mecanismo de validación en 'Buscar documento' del Sistema de Factura Electrónica. Vigente 28 jul 2026."],
-        ["Cambio", "La DIAN activó nuevos mecanismos de validación de seguridad en la consulta/descarga de documentos electrónicos del Sistema de Factura Electrónica, vigentes desde el 28-jul-2026."],
-        ["A quién afecta", "Usuarios e integraciones de Alegra en Colombia que consultan o descargan documentos electrónicos desde la plataforma de la DIAN."],
-        ["Severidad", "Media — afecta flujos automatizados de consulta/descarga; requiere ajuste de integraciones."],
-        ["Riesgo si no actuamos", "Consultas o descargas que fallen desde integraciones, con impacto en procesos que dependen de recuperar documentos ante la DIAN."],
-      ],
-      rrd: [
-        ["R1", "Adaptar las integraciones de consulta/descarga para enviar el número de identificación del emisor o receptor."],
-        ["R2", "Repetir el número de identificación en el paso de descarga, según el nuevo requisito."],
-        ["R3", "Manejar los mensajes de validación anti-automatización sin romper el flujo del usuario."],
-      ],
-      rrdAccept:
-        "Criterio de aceptación: la consulta y descarga de documentos desde la integración funciona con los nuevos requisitos, sin errores de validación.",
-      gap: {
-        actual: "Integraciones de consulta/descarga sin el número de identificación requerido (por confirmar con Ingeniería).",
-        requerido: "Flujo de consulta/descarga alineado a las validaciones de la DIAN vigentes desde el 28-jul-2026.",
-        brecha: "Falta enviar (y repetir) el número de identificación y manejar las nuevas validaciones.",
-        esfuerzo: "Medio: ajuste de integraciones + pruebas contra el portal (a validar con el equipo).",
-        prioridad: "Media–alta (ya vigente).",
-      },
-    },
-  },
 ];
 
+// Fechas "sin cambios desde" para las fuentes en monitoreo (verde).
 export const SEED_OK_DESDE: Record<string, string> = {
   cohacienda: "vigilando proyectos de decreto",
   pe: "28 jul 2026",
@@ -138,15 +90,6 @@ export const SEED_NOTIFICATIONS: Notification[] = [
     titulo: "México · SAT",
     detalle: "Actualización de catálogos CFDI 4.0 (comercio exterior), vigente 17 jul 2026.",
     cuando: "17 jul 2026",
-    leido: false,
-  },
-  {
-    id: "n-co-2026-07-28",
-    sourceId: "co",
-    tone: "alert",
-    titulo: "Colombia · DIAN",
-    detalle: "Nuevas validaciones en la consulta de documentos electrónicos, vigente 28 jul 2026.",
-    cuando: "28 jul 2026",
     leido: false,
   },
 ];
