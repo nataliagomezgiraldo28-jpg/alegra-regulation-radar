@@ -115,7 +115,7 @@ export async function interpret(source: Source, diff: string): Promise<Partial<C
 // A prueba de fallos: cualquier error se registra y NO afecta al resto del radar.
 // =============================================================================
 
-type Norma = { id: string; titulo: string; url: string; desc: string };
+type Norma = { id: string; titulo: string; url: string; desc: string; anio: number };
 
 // Extrae cada norma del markdown que devuelve Firecrawl: [**Título**](url) descripción
 export function parseNormas(md: string): Norma[] {
@@ -127,9 +127,13 @@ export function parseNormas(md: string): Norma[] {
     const url = m[2].trim();
     const desc = m[3].replace(/\s+/g, " ").trim().slice(0, 240);
     if (!/resoluci|circular|decreto|ley|anexo/i.test(titulo)) continue; // solo normas
+    const anios = (titulo + " " + desc).match(/\b20\d{2}\b/g);
+    const anio = anios ? Math.max(...anios.map(Number)) : 0;
     const id = titulo.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-    out.push({ id, titulo, url, desc });
+    out.push({ id, titulo, url, desc, anio });
   }
+  // Más recientes primero (monitoreo actual): prioriza 2026, 2025, etc.
+  out.sort((a, b) => b.anio - a.anio);
   return out;
 }
 
@@ -138,13 +142,14 @@ async function interpretDianList(source: Source, normas: Norma[]): Promise<any |
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return null;
   const model = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001";
-  const lista = normas.map((n, i) => `${i}. ${n.titulo} — ${n.desc}`).join("\n");
+  const lista = normas.map((n, i) => `${i}. [${n.anio || "s/f"}] ${n.titulo} — ${n.desc}`).join("\n");
   const system =
     `Eres analista de Product Regulation en Alegra (SaaS de facturación LATAM). ` +
     `Productos: ${source.productosPosibles.join(", ")}. Respondes SOLO JSON válido, sin texto adicional.`;
   const prompt =
-    `De esta lista de normas de la DIAN, elige la MÁS relevante para los productos de Alegra e interprétala. ` +
-    `Si ninguna es claramente relevante, elige la más cercana y marca "relevante":false.\n\n${lista}\n\n` +
+    `Esta es una lista de normas de la DIAN para MONITOREO ACTUAL. Elige la MÁS RECIENTE y relevante para los productos de Alegra ` +
+    `(prioriza 2026, luego 2025; ignora normas de años anteriores salvo que no haya nada reciente). Interprétala. ` +
+    `Si ninguna reciente es claramente relevante, elige la más reciente disponible y marca "relevante":false.\n\n${lista}\n\n` +
     `Devuelve JSON: {"index":number,"relevante":boolean,"titulo":string,"severidad":"alta"|"media"|"baja",` +
     `"quePaso":string,"queSignifica":string,"queHacer":string[],"productos":string[],` +
     `"ria":[[string,string]],"rrd":[[string,string]],"rrdAccept":string,` +
